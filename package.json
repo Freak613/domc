@@ -1,0 +1,22 @@
+{
+  "name": "domc",
+  "version": "0.0.1",
+  "description": "DOM Node to DOM API compiler",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Freak613/domc.git"
+  },
+  "keywords": [
+    "dom"
+  ],
+  "author": "Pavel Martynov <martynov.pl@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Freak613/domc/issues"
+  },
+  "homepage": "https://github.com/Freak613/domc#readme"
+}
