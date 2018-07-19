@@ -14,7 +14,7 @@ const nativeToSyntheticEvent = (event, name) => {
     }
 }
 const CONFIGURED_SYNTHETIC_EVENTS = {}
-const setupSyntheticEvent = name => {
+function setupSyntheticEvent(name) {
     if (CONFIGURED_SYNTHETIC_EVENTS[name]) return
     document.addEventListener(name, event => nativeToSyntheticEvent(event, name))
     CONFIGURED_SYNTHETIC_EVENTS[name] = true
@@ -22,172 +22,178 @@ const setupSyntheticEvent = name => {
 
 // Core
 
+const EVENT_HANDLER_REGEX = new RegExp(/^on/)
+
 let tagCounter = 0
 
-const codegenAttributes = (dom, node, dynamicParts) => {
-    if (!dom.attributes) return []
+let root, node, staticParts, dynamicParts
 
-    let staticParts = []
+let tagName, tag, tagId, createElement, parent,
+attr, aname, avalue, eventType, 
+reactiveValue, handlerTokens, part
 
-    for(let i = 0; i < dom.attributes.length; i++) {
-        let name = dom.attributes[i].name
-        let value = dom.attributes[i].value
-
-        if (name === 'class') name = 'className'
-
-        if (name.match(/^on/)) {
-            const eventType = name.replace(/^on/, '')
-            setupSyntheticEvent(eventType)
-            if (value.indexOf("${") >= 0) {
-                const reactiveValue = value.replace(/^\${/, '').replace(/}$/, '')
-                const handlerName = reactiveValue.match(/^.*?\(/)[0].replace('(', '')
-                const argument = reactiveValue.match(/\(.*?\)/)[0].replace(/[\(\)]/g, '')
-
-                staticParts.push(`${node}.__${eventType} = scope.${handlerName};\n`)
-
-                dynamicParts.push({
-                    ref: node,
-                    getter: argument,
-                    setter: value => `node.__${node}.__${eventType}Data = ${value};\n`
-                })
-            } else {
-                staticParts.push(`${node}.on${eventType} = ${value};\n`)
-            }
-        } else if (value.indexOf("${") >= 0) {
-            if (name === 'className') {
-                dynamicParts.push({
-                    ref: node,
-                    getter: value,
-                    setter: value => `node.__${node}.className = ${value};\n`
-                })
-            } else {
-                dynamicParts.push({
-                    ref: node,
-                    getter: value,
-                    setter: value => `node.__${node}.setAttribute("${name}", ${value});\n`
-                })
-            }
-        } else {
-            if (name === 'className') {
-                staticParts.push(
-                    `${node}.${name} = "${value}";\n`
-                )
-            } else {
-                staticParts.push(
-                    `${node}.setAttribute("${name}", "${value}");\n`
-                )
-            }
-        }        
-    }
-
-    return staticParts
+const ATTR_SETTERS = {
+    event: (tagId, eventType) => `node.__${tagId}.__${eventType}Data = #value;\n`,
+    className: tagId => `node.__${tagId}.className = #value;\n`,
+    setAttribute: (tagId, aname) => `node.__${tagId}.setAttribute("${aname}", #value);\n`
 }
-const codegenText = (dom, node, dynamicParts) => {
-    if (dom.data.indexOf("${") >= 0) {
-        dynamicParts.push({
-            ref: node,
-            getter: dom.data,
-            setter: value => `node.__${node}.data = ${value};\n`
-        })
-        return ''
+const TEXT_SETTER = tagId => `node.__${tagId}.data = #value;\n`
+
+let stack = [], stackIdx = 0
+function codegenStatic() {
+    tagName = node.tagName
+    if (tagName !== undefined) {
+        tag = tagName.toLowerCase()
+        tagId = tag + (++tagCounter)
+        createElement = 'createElement'
     } else {
-        return `${node}.data = "${node.data}"`
-    }
-}
-const codegenStatic = (node, dynamicParts, parent, root) => {
-    let tagId, tag, createElement
-    if (node.nodeType === 3) {
         if (node.data.trim() === '') return
         tag = ''
         tagId = 'text' + (++tagCounter)
         createElement = 'createTextNode'
-    } else {
-        tag = node.tagName.toLowerCase()
-        tagId = tag + (++tagCounter)
-        createElement = 'createElement'
     }
-    const head = `const ${tagId} = document.${createElement}("${tag}");\n`
+    staticParts.push(`const ${tagId} = document.${createElement}("${tag}");\n`)
     
-    if (!root) root = tagId
+    if (root === undefined) root = tagId
     
-    let content, attributes
-    if (node.nodeType === 3) {
-        attributes = ''
-        content = codegenText(node, tagId, dynamicParts)
+    if (tagName !== undefined) {
+
+        // codegenAttributes
+        if (node.attributes !== undefined) {
+            for(attr of node.attributes) {
+                aname = attr.name
+                avalue = attr.value
+
+                if (aname === 'class') aname = 'className'
+
+                if (EVENT_HANDLER_REGEX.test(aname)) {
+
+                    eventType = aname.replace(EVENT_HANDLER_REGEX, '')
+                    setupSyntheticEvent(eventType)
+
+                    if (avalue.indexOf("${") >= 0) {
+                        reactiveValue = avalue.replace(/^\${/, '').replace(/}$/, '')
+                        handlerTokens = reactiveValue.split(/[\(\)]/)
+
+                        staticParts.push(`${tagId}.__${eventType} = scope.${handlerTokens[0]};\n`)
+
+                        dynamicParts.push({
+                            ref: tagId,
+                            getter: handlerTokens[1],
+                            setter: ATTR_SETTERS.event(tagId, eventType)
+                        })
+                    } else {
+                        staticParts.push(`${tagId}.on${eventType} = ${avalue};\n`)
+                    }
+
+                } else if (avalue.indexOf("${") >= 0) {
+                    if (aname === 'className') {
+                        dynamicParts.push({
+                            ref: tagId,
+                            getter: avalue,
+                            setter: ATTR_SETTERS.className(tagId)
+                        })
+                    } else {
+                        dynamicParts.push({
+                            ref: tagId,
+                            getter: avalue,
+                            setter: ATTR_SETTERS.setAttribute(tagId, aname)
+                        })
+                    }
+                } else {
+                    if (aname === 'className') {
+                        staticParts.push(
+                            `${tagId}.${aname} = "${avalue}";\n`
+                        )
+                    } else {
+                        staticParts.push(
+                            `${tagId}.setAttribute("${aname}", "${avalue}");\n`
+                        )
+                    }
+                }     
+            }
+        }
+        // End codegenAttributes
+
+        stack[stackIdx] = parent
+        parent = tagId
+        stackIdx++
+        for(node of node.childNodes) codegenStatic()
+        stackIdx--
+        tagId = parent
+        parent = stack[stackIdx]
     } else {
-        attributes = codegenAttributes(node, tagId, dynamicParts).join('')
-        content = [...node.childNodes].map(c => codegenStatic(c, dynamicParts, tagId, root)).join('')
+
+        // codegenText
+        if (node.data.indexOf("${") >= 0) {
+            dynamicParts.push({
+                ref: tagId,
+                getter: node.data,
+                setter: TEXT_SETTER(tagId)
+            })
+        } else {
+            staticParts.push(`${node}.data = "${node.data}"`)
+        }
+        // End codegenText
+
     }
 
-    let tail
     if (root === tagId) {
-
-        tail = `\
-${dynamicParts.map(({ref}) => `${root}.__${ref} = ${ref};\n`).join('')}\
-return ${tagId};\n`
-
+        for(part of dynamicParts) staticParts.push(`${root}.__${part.ref} = ${part.ref};\n`)
+        staticParts.push(`return ${tagId};`)
+        return Function("scope", staticParts.join(''))
     } else {
-        tail = `${parent}.appendChild(${tagId});\n`
+        staticParts.push(`${parent}.appendChild(${tagId});\n`)
     }
-
-    return `${head}${attributes}${content}${tail}`
 }
 
-function makeid() {
-  var text = "";
-  var possible = "abcdefghijklmnopqrstuvwxyz";
-
-  text = possible.charAt(makeid.counter++);
-
-  if (makeid.counter === possible.length) makeid.counter = 0
-  return text;
-}
+function makeid() {}
+makeid.possible = "abcdefghijklmnopqrstuvwxyz"
 makeid.counter = 0
 
-const clearBrackets = parts => parts.map(p => p.getter = p.getter.replace(/^\${/, '').replace(/}$/, ''))
-const buildArgumentsToken = parts => {
-    const argumentKeys = {}
+let vdomId, parts, code, buildDomIdx, compareDomIdx, argumentKeys, argumentsToken
+function codegenUpdater() {
+    parts = dynamicParts
 
-    parts.map(({getter}) =>
-        getter.split(/[(),]/)
+    makeid.counter = 0
+
+    code = ["const vdom = {};\n"]
+    code.length = parts.length * 2 + 2
+    
+    buildDomIdx = 1
+    compareDomIdx = 1 + parts.length
+
+    argumentKeys = {}
+
+    for(part of parts) {
+        part.getter = part.getter.replace(/^\${/, '').replace(/}$/, '')
+
+        part.getter.split(/[(),]/)
         .filter(v => !!v)
         .map(v => v.trim().replace(/\..*$/, ''))
-        .map(token => argumentKeys[token] = true))
+        .map(token => argumentKeys[token] = true) 
 
-    return `{${Object.keys(argumentKeys).join(', ')}}`
-}
-const codegenUpdater = parts => {
-    makeid.counter = 0
+        vdomId = makeid.possible.charAt(makeid.counter++)
+        code[buildDomIdx] = `vdom.${vdomId} = ${part.getter};\n`
+        code[compareDomIdx] = `if (current.${vdomId} !== vdom.${vdomId}) ${part.setter.replace('#value', `vdom.${vdomId}`)}`
+        buildDomIdx++
+        compareDomIdx++
+    }
+
+    argumentsToken = `{${Object.keys(argumentKeys).join(', ')}}`
     
-    clearBrackets(parts)
-
-    const argumentsToken = buildArgumentsToken(parts)
-
-    const head = "const vdom = {};\n"
-
-    const buildVDOM = parts.map(({getter}) => `vdom.${makeid()} = ${getter};\n`).join('')
+    code.push("return vdom;")
     
-    makeid.counter = 0
-
-    const compareVDOM = parts.map(({setter}) => {
-        const vdomId = makeid()
-        return `if (current.${vdomId} !== vdom.${vdomId}) ${setter(`vdom.${vdomId}`)}`
-    }).join('')
-    
-    const tail = "return vdom;"
-
-    const code = `${head}${buildVDOM}\n${compareVDOM}${tail}`
-    
-    return {code, argumentsToken}
+    return Function(argumentsToken, "node", "current = {}", code.join(''))
 }
 
 class Template {
-    constructor(node) {
-        const parts = []
-        const code = codegenStatic(node, parts)
-        this.createInstanceFn = Function("scope", code)
-        const dynamicCode = codegenUpdater(parts)
-        this.update = Function(dynamicCode.argumentsToken, "node", "current = {}", dynamicCode.code)
+    constructor() {
+        root = undefined
+        staticParts = []
+        dynamicParts = []
+        this.createInstanceFn = codegenStatic()
+        this.update = codegenUpdater()
     }
     createInstance(scope) {
         return new TemplateInstance(this, this.createInstanceFn(scope), scope)
@@ -206,6 +212,9 @@ class TemplateInstance {
 }
 
 const domc = () => {}
-domc.compile = node => new Template(node)
+domc.compile = function(dom) {
+    node = dom
+    return new Template()
+}
 
 export default domc
