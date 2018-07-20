@@ -21,26 +21,35 @@ function setupSyntheticEvent(name) {
 }
 
 // Core
+//
+// To speed up template compiler:
+// - Reduce amount of fn calls, because every call has cost of allocating memory for new fn context.
+//   Inline as much code as possible ot avoid calls.
+// - Preallocate all variables at once in module context instead of fn arguments.
+//   It reduces time to allocate context memory for functions that needed some arguments for every call.
+//   Use Stack for handling arguments of nested/recursive calls.
+// - String concatenation is faster than arr.join('')
+// - arr[idx] is faster than arr.push, because it's not a function call,
+//   therefore it doesn't need to allocate memory for new fn context
+//
+// TODO:
+// - Rewrite recursive codegen into iterative one.
+//   DOM TreeWalker is not applicable here because it doesn't provide information about tree depth of current node.
+//   AppendChild of node must happen as last operation after all attributes has been set and all children attached.
 
 const EVENT_HANDLER_REGEX = new RegExp(/^on/)
 
 let tagCounter = 0
 
-let root, node, staticParts, dynamicParts
-
-let tagName, tag, tagId, createElement, parent,
+let root, node, staticCode,
+tagName, tag, tagId, createElement, parent,
 attr, aname, avalue, eventType, 
-reactiveValue, handlerTokens, part
-
-const ATTR_SETTERS = {
-    event: (tagId, eventType) => `node.__${tagId}.__${eventType}Data = #value;\n`,
-    className: tagId => `node.__${tagId}.className = #value;\n`,
-    setAttribute: (tagId, aname) => `node.__${tagId}.setAttribute("${aname}", #value);\n`
-}
-const TEXT_SETTER = tagId => `node.__${tagId}.data = #value;\n`
+reactiveValue, handlerTokens,
+vdomCode, compareCode, args, 
+vdomId, arg
 
 let stack = [], stackIdx = 0
-function codegenStatic() {
+function codegen() {
     tagName = node.tagName
     if (tagName !== undefined) {
         tag = tagName.toLowerCase()
@@ -52,7 +61,7 @@ function codegenStatic() {
         tagId = 'text' + (++tagCounter)
         createElement = 'createTextNode'
     }
-    staticParts.push(`const ${tagId} = document.${createElement}("${tag}");\n`)
+    staticCode += `const ${tagId} = document.${createElement}("${tag}");\n`
     
     if (root === undefined) root = tagId
     
@@ -72,128 +81,82 @@ function codegenStatic() {
                     setupSyntheticEvent(eventType)
 
                     if (avalue.indexOf("${") >= 0) {
-                        reactiveValue = avalue.replace(/^\${/, '').replace(/}$/, '')
+                        reactiveValue = avalue.match(/^\$\{(.*)\}$/)[1]
                         handlerTokens = reactiveValue.split(/[\(\)]/)
 
-                        staticParts.push(`${tagId}.__${eventType} = scope.${handlerTokens[0]};\n`)
+                        staticCode += `${tagId}.__${eventType} = scope.${handlerTokens[0]};\n`
 
-                        dynamicParts.push({
-                            ref: tagId,
-                            getter: handlerTokens[1],
-                            setter: ATTR_SETTERS.event(tagId, eventType)
-                        })
+                        staticCode += `${root}.__${tagId} = ${tagId};\n`
+
+                        vdomId = makeid.possible.charAt(makeid.counter++)
+                        vdomCode += `vdom.${vdomId} = ${handlerTokens[1]};\n`
+                        compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) node.__${tagId}.__${eventType}Data = vdom.${vdomId};\n`
                     } else {
-                        staticParts.push(`${tagId}.on${eventType} = ${avalue};\n`)
+                        staticCode += `${tagId}.on${eventType} = ${avalue};\n`
                     }
 
                 } else if (avalue.indexOf("${") >= 0) {
                     if (aname === 'className') {
-                        dynamicParts.push({
-                            ref: tagId,
-                            getter: avalue,
-                            setter: ATTR_SETTERS.className(tagId)
-                        })
+                        staticCode += `${root}.__${tagId} = ${tagId};\n`
+
+                        vdomId = makeid.possible.charAt(makeid.counter++)
+                        vdomCode += `vdom.${vdomId} = ${avalue.match(/^\$\{(.*)\}$/)[1]};\n`
+                        compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) node.__${tagId}.className = vdom.${vdomId};\n`
                     } else {
-                        dynamicParts.push({
-                            ref: tagId,
-                            getter: avalue,
-                            setter: ATTR_SETTERS.setAttribute(tagId, aname)
-                        })
+                        staticCode += `${root}.__${tagId} = ${tagId};\n`
+
+                        vdomId = makeid.possible.charAt(makeid.counter++)
+                        vdomCode += `vdom.${vdomId} = ${avalue.match(/^\$\{(.*)\}$/)[1]};\n`
+                        compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) node.__${tagId}.setAttribute("${aname}", vdom.${vdomId});\n`
                     }
                 } else {
                     if (aname === 'className') {
-                        staticParts.push(
-                            `${tagId}.${aname} = "${avalue}";\n`
-                        )
+                        staticCode += `${tagId}.${aname} = "${avalue}";\n`
                     } else {
-                        staticParts.push(
-                            `${tagId}.setAttribute("${aname}", "${avalue}");\n`
-                        )
+                        staticCode += `${tagId}.setAttribute("${aname}", "${avalue}");\n`
                     }
                 }     
             }
         }
         // End codegenAttributes
 
-        stack[stackIdx] = parent
+        stack[stackIdx++] = parent
         parent = tagId
-        stackIdx++
-        for(node of node.childNodes) codegenStatic()
-        stackIdx--
+        for(node of node.childNodes) codegen()
         tagId = parent
-        parent = stack[stackIdx]
+        parent = stack[--stackIdx]
     } else {
 
         // codegenText
         if (node.data.indexOf("${") >= 0) {
-            dynamicParts.push({
-                ref: tagId,
-                getter: node.data,
-                setter: TEXT_SETTER(tagId)
-            })
+            staticCode += `${root}.__${tagId} = ${tagId};\n`
+
+            vdomId = makeid.possible.charAt(makeid.counter++)
+            vdomCode += `vdom.${vdomId} = ${node.data.match(/^\$\{(.*)\}$/)[1]};\n`
+            compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) node.__${tagId}.data = vdom.${vdomId};\n`
         } else {
-            staticParts.push(`${node}.data = "${node.data}"`)
+            staticCode += `${node}.data = "${node.data}"`
         }
         // End codegenText
 
     }
 
-    if (root === tagId) {
-        for(part of dynamicParts) staticParts.push(`${root}.__${part.ref} = ${part.ref};\n`)
-        staticParts.push(`return ${tagId};`)
-        return Function("scope", staticParts.join(''))
-    } else {
-        staticParts.push(`${parent}.appendChild(${tagId});\n`)
+    if (root !== tagId) {
+        staticCode += `${parent}.appendChild(${tagId});\n`
     }
 }
 
 function makeid() {}
 makeid.possible = "abcdefghijklmnopqrstuvwxyz"
-makeid.counter = 0
-
-let vdomId, parts, code, buildDomIdx, compareDomIdx, argumentKeys, argumentsToken
-function codegenUpdater() {
-    parts = dynamicParts
-
-    makeid.counter = 0
-
-    code = ["const vdom = {};\n"]
-    code.length = parts.length * 2 + 2
-    
-    buildDomIdx = 1
-    compareDomIdx = 1 + parts.length
-
-    argumentKeys = {}
-
-    for(part of parts) {
-        part.getter = part.getter.replace(/^\${/, '').replace(/}$/, '')
-
-        part.getter.split(/[(),]/)
-        .filter(v => !!v)
-        .map(v => v.trim().replace(/\..*$/, ''))
-        .map(token => argumentKeys[token] = true) 
-
-        vdomId = makeid.possible.charAt(makeid.counter++)
-        code[buildDomIdx] = `vdom.${vdomId} = ${part.getter};\n`
-        code[compareDomIdx] = `if (current.${vdomId} !== vdom.${vdomId}) ${part.setter.replace('#value', `vdom.${vdomId}`)}`
-        buildDomIdx++
-        compareDomIdx++
-    }
-
-    argumentsToken = `{${Object.keys(argumentKeys).join(', ')}}`
-    
-    code.push("return vdom;")
-    
-    return Function(argumentsToken, "node", "current = {}", code.join(''))
-}
+makeid.counter = 0 
 
 class Template {
     constructor() {
         root = undefined
-        staticParts = []
-        dynamicParts = []
-        this.createInstanceFn = codegenStatic()
-        this.update = codegenUpdater()
+        staticCode = vdomCode = compareCode = ''
+        codegen()
+        this.createInstanceFn = Function("scope", staticCode + `return ${root};`)
+        this.update = Function("{" + args + "}", "node", "current = {}", 'const vdom = {};\n' + vdomCode + compareCode + "return vdom;")
     }
     createInstance(scope) {
         return new TemplateInstance(this, this.createInstanceFn(scope), scope)
@@ -212,7 +175,9 @@ class TemplateInstance {
 }
 
 const domc = () => {}
-domc.compile = function(dom) {
+domc.compile = function(dom, scope) {
+    args = ''
+    for(arg of Object.keys(scope)) args += arg + ","
     node = dom
     return new Template()
 }
