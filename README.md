@@ -14,7 +14,7 @@ import domc from 'domc'
 //     <div>${surname}</div>
 // </div>
 // compile it into template
-const template = domc.compile(document.querySelector('#template'))
+const template = domc.compile(document.querySelector('#template'), {name: null, surname: null})
 
 // Create template instance with given values
 const instance = template.createInstance({name: 'John', surname: 'Wick'})
@@ -63,16 +63,10 @@ The idea is simple:
 //     <div>${name}</div>
 //     <div>${surname}</div>
 // </div>
-const node = document.querySelector('#template')
 
-// Tokenize
-const token = tokenize(node)
+codegen()
 
-// And use token to generate code for node constructor
-const staticCode = token.codegen()
-const generateStatic = Function("scope", staticCode)
-
-// This will produce straightforward set of DOM API calls to instantiate the node.
+// This will produce code with straightforward set of DOM API calls to instantiate the node.
 // Important part that during compilation, it detects dynamic nodes,
 // and extract references to them, attaching it to the root node.
 // It has one argument `scope`, that used for synthethic event handlers binding
@@ -80,45 +74,38 @@ const generateStatic = Function("scope", staticCode)
 ) {
 const div11 = document.createElement("div");
 div11.setAttribute("id", "template");
-div11.__click = scope.select;
-const div12 = document.createElement("div");
-div11.appendChild(div12);
-const text13 = document.createTextNode("");
-div12.appendChild(text13);
-div11.__text13 = text13;
-const div14 = document.createElement("div");
-div11.appendChild(div14);
-const text15 = document.createTextNode("");
-div14.appendChild(text15);
-div11.__text15 = text15;
 div11.__div11 = div11;
+div11.__click = scope.select;
+div11.__div11 = div11;
+const div12 = document.createElement("div");
+const text13 = document.createTextNode("");
+div11.__text13 = text13;
+div12.appendChild(text13);
+div11.appendChild(div12);
+const div14 = document.createElement("div");
+const text15 = document.createTextNode("");
+div11.__text15 = text15;
+div14.appendChild(text15);
+div11.appendChild(div14);
 return div11;
-
 })
 
-// Then, generate updater
-const parts = []
-token.getDynamicParts(parts)
-const dynamicCode = codegenUpdater(parts)
-
-// This will produce function, that can later be used to 'rerender' instance
+// Also, codegen will produce function, that can later be used to 'rerender' instance
 // It has 3 arguments:
-// - scope, that will be destructured into used scope keys
+// - destructured scope
 // - root node, that has assigned references to its dynamic nodes
 // - result of previous rerender call. It used to detect actual changes, something like VDOM.
-(function anonymous({selected, name, surname},node,current = {}
+(function anonymous({selected,select,name,surname,},node,current = {}
 ) {
 const vdom = {};
 vdom.a = selected;
 vdom.b = name;
 vdom.c = name;
 vdom.d = surname;
-
 if (current.a !== vdom.a) node.__div11.className = vdom.a;
 if (current.b !== vdom.b) node.__div11.__clickData = vdom.b;
 if (current.c !== vdom.c) node.__text13.data = vdom.c;
 if (current.d !== vdom.d) node.__text15.data = vdom.d;
-
-return vdom
+return vdom;
 })
 ```
