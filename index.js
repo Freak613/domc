@@ -31,13 +31,8 @@ function setupSyntheticEvent(name) {
 // - String concatenation is faster than arr.join('')
 // - arr[idx] is faster than arr.push, because it's not a function call,
 //   therefore it doesn't need to allocate memory for new fn context
+// - str[idx] and str.slice are faster than regex matching
 //
-// TODO:
-// - Rewrite recursive codegen into iterative one.
-//   DOM TreeWalker is not applicable here because it doesn't provide information about tree depth of current node.
-//   AppendChild of node must happen as last operation after all attributes has been set and all children attached.
-
-const EVENT_HANDLER_REGEX = new RegExp(/^on/)
 
 let tagCounter = 0
 
@@ -46,10 +41,12 @@ tagName, tag, tagId, createElement, parent,
 attr, aname, avalue, eventType, 
 reactiveValue, handlerTokens,
 vdomCode, compareCode, args, 
-vdomId, arg
+vdomId, arg, appendCode, refsCode, 
+nodeData, eventHandler, parenIdx,
+eventHandlerArgs
 
 let stack = [], stackIdx = 0
-function codegen() {
+function codegen(node, parent, root) {
     tagName = node.tagName
     if (tagName !== undefined) {
         tag = tagName.toLowerCase()
@@ -75,21 +72,23 @@ function codegen() {
 
                 if (aname === 'class') aname = 'className'
 
-                if (EVENT_HANDLER_REGEX.test(aname)) {
+                if (aname[0] === 'o' && aname[1] === 'n') {
 
-                    eventType = aname.replace(EVENT_HANDLER_REGEX, '')
+                    eventType = aname.slice(2)
                     setupSyntheticEvent(eventType)
 
                     if (avalue.indexOf("${") >= 0) {
-                        reactiveValue = avalue.match(/^\$\{(.*)\}$/)[1]
-                        handlerTokens = reactiveValue.split(/[\(\)]/)
+                        reactiveValue = avalue.slice(2, avalue.length - 1)
+                        parenIdx = reactiveValue.indexOf("(")
+                        eventHandler = reactiveValue.slice(0, parenIdx)
+                        eventHandlerArgs = reactiveValue.slice(parenIdx + 1, reactiveValue.length - 1).split(',')
 
-                        staticCode += `${tagId}.__${eventType} = scope.${handlerTokens[0]};\n`
+                        staticCode += `${tagId}.__${eventType} = scope.${eventHandler};\n`
 
-                        staticCode += `${root}.__${tagId} = ${tagId};\n`
+                        refsCode += `${root}.__${tagId} = ${tagId};\n`
 
                         vdomId = makeid.possible.charAt(makeid.counter++)
-                        vdomCode += `vdom.${vdomId} = ${handlerTokens[1]};\n`
+                        vdomCode += `vdom.${vdomId} = ${eventHandlerArgs};\n`
                         compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) node.__${tagId}.__${eventType}Data = vdom.${vdomId};\n`
                     } else {
                         staticCode += `${tagId}.on${eventType} = ${avalue};\n`
@@ -97,16 +96,16 @@ function codegen() {
 
                 } else if (avalue.indexOf("${") >= 0) {
                     if (aname === 'className') {
-                        staticCode += `${root}.__${tagId} = ${tagId};\n`
+                        refsCode += `${root}.__${tagId} = ${tagId};\n`
 
                         vdomId = makeid.possible.charAt(makeid.counter++)
-                        vdomCode += `vdom.${vdomId} = ${avalue.match(/^\$\{(.*)\}$/)[1]};\n`
+                        vdomCode += `vdom.${vdomId} = ${avalue.slice(2, avalue.length - 1)};\n`
                         compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) node.__${tagId}.className = vdom.${vdomId};\n`
                     } else {
-                        staticCode += `${root}.__${tagId} = ${tagId};\n`
+                        refsCode += `${root}.__${tagId} = ${tagId};\n`
 
                         vdomId = makeid.possible.charAt(makeid.counter++)
-                        vdomCode += `vdom.${vdomId} = ${avalue.match(/^\$\{(.*)\}$/)[1]};\n`
+                        vdomCode += `vdom.${vdomId} = ${avalue.slice(2, avalue.length - 1)};\n`
                         compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) node.__${tagId}.setAttribute("${aname}", vdom.${vdomId});\n`
                     }
                 } else {
@@ -120,66 +119,80 @@ function codegen() {
         }
         // End codegenAttributes
 
-        stack[stackIdx++] = parent
-        parent = tagId
-        for(node of node.childNodes) codegen()
-        tagId = parent
-        parent = stack[--stackIdx]
     } else {
 
         // codegenText
-        if (node.data.indexOf("${") >= 0) {
-            staticCode += `${root}.__${tagId} = ${tagId};\n`
+        nodeData = node.data
+        if (nodeData.indexOf("${") >= 0) {
+            refsCode += `${root}.__${tagId} = ${tagId};\n`
 
             vdomId = makeid.possible.charAt(makeid.counter++)
-            vdomCode += `vdom.${vdomId} = ${node.data.match(/^\$\{(.*)\}$/)[1]};\n`
+            vdomCode += `vdom.${vdomId} = ${nodeData.slice(2, nodeData.length - 1)};\n`
             compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) node.__${tagId}.data = vdom.${vdomId};\n`
         } else {
-            staticCode += `${node}.data = "${node.data}"`
+            staticCode += `${node}.data = "${nodeData}"`
         }
         // End codegenText
 
     }
 
-    if (root !== tagId) {
-        staticCode += `${parent}.appendChild(${tagId});\n`
+    if (parent === root) {
+        staticCode += appendCode
+        appendCode = ''
     }
+    if (parent !== undefined) {
+        appendCode = `${parent}.appendChild(${tagId});\n` + appendCode
+    }
+    return tagId
+}
+
+// Inspired by: https://gist.github.com/cowboy/958000
+function walker(node) {
+    let skip = false, tmp, lastNode
+    lastNode = root = codegen(node)
+    do {
+        if (!skip && (tmp = node.firstChild)) {
+            skip = false
+            stack[stackIdx++] = parent
+            parent = lastNode
+            lastNode = codegen(tmp, parent, root)
+        } else if (tmp = node.nextSibling) {
+            skip = false
+            lastNode = codegen(tmp, parent, root)
+        } else {
+            tmp = node.parentNode
+            parent = stack[--stackIdx]
+            skip = true
+        }
+        node = tmp
+    } while (node)
+    staticCode += appendCode + refsCode + `return ${root};`
 }
 
 function makeid() {}
 makeid.possible = "abcdefghijklmnopqrstuvwxyz"
-makeid.counter = 0 
+makeid.counter = 0
 
+let templateInstance
 class Template {
-    constructor() {
-        root = undefined
-        staticCode = vdomCode = compareCode = ''
-        codegen()
-        this.createInstanceFn = Function("scope", staticCode + `return ${root};`)
-        this.update = Function("{" + args + "}", "node", "current = {}", 'const vdom = {};\n' + vdomCode + compareCode + "return vdom;")
+    constructor(dom) {
+        staticCode = vdomCode = compareCode = appendCode = refsCode = ''
+        walker(dom)
+        this.create = Function("scope", staticCode)
+        this.update = Function("{" + args + "}", "node = this", "current = node.__vdom || {}", 'const vdom = {};\n' + vdomCode + compareCode + "node.__vdom = vdom;")
     }
     createInstance(scope) {
-        return new TemplateInstance(this, this.createInstanceFn(scope), scope)
+        templateInstance = this.create(scope)
+        templateInstance.update = this.update
+        templateInstance.update(scope)
+        return templateInstance
     }
 }
 
-class TemplateInstance {
-    constructor(template, node, scope) {
-        this.template = template
-        this.node = node
-        if (scope) this.update(scope)
-    }
-    update(scope) {
-        this.vdom = this.template.update(scope, this.node, this.vdom)
-    }
-}
-
-const domc = () => {}
-domc.compile = function(dom, scope) {
+function domc(dom, scope) {
     args = ''
     for(arg of Object.keys(scope)) args += arg + ","
-    node = dom
-    return new Template()
+    return new Template(dom)
 }
 
 export default domc

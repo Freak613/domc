@@ -14,14 +14,14 @@ import domc from 'domc'
 //     <div>${surname}</div>
 // </div>
 // compile it into template
-const template = domc.compile(document.querySelector('#template'), {name: null, surname: null})
+const template = domc(document.querySelector('#template'), {name: null, surname: null})
 
 // Create template instance with given values
-const instance = template.createInstance({name: 'John', surname: 'Wick'})
-container.appendChild(instance.node)
+const node = template.createInstance({name: 'John', surname: 'Wick'})
+container.appendChild(node)
 ...
 // Update instance with new values
-instance.update({name: 'Bob', surname: 'Marley'})
+node.update({name: 'Bob', surname: 'Marley'})
 ```
 
 ## Performance demo
