@@ -1,7 +1,6 @@
 # domc
 
-Compile real DOM node, with `${value}` syntax for dynamic values inside,
-into function with DOM API calls for using as a template.
+Compile DOM node, with `${value}` syntax for dynamic values inside, into function for using as a template.
 
 ## The Gist
 
@@ -53,41 +52,48 @@ Also, it doesn't do bubbling after first handler has been met.
 ## How it works
 
 The idea is simple:
-- Convert live node into DOM API calls,
-- Store references to dynamic parts,
+- Walk the node and store references to dynamic parts,
 - Use references in updater function to effectively update the node.
+
+According to [morphdom](https://github.com/patrick-steele-idem/morphdom) there are some DOM properties that doesn't require additional computation and therefore they're very fast to work with.
+Instead of building DOM by .createElement API calls with a lot of memory garbage, it's more effective to clone template node and use fast props to obtain references, with as less performance overhead as possible.
 
 ```javascript
 // Given following node
-// <div id="template" class="${selected}" onclick="${select(name)}">
-//     <div>${name}</div>
-//     <div>${surname}</div>
-// </div>
+// <tr class="${rowClass(item.id, selected)}">
+//   <td class="col-md-1">${item.id}</td>
+//   <td class="col-md-4">
+//       <a onclick="${select(item)}">${item.label}</a>
+//   </td>
+//   <td class="col-md-1"><a onclick="${del(item)}"><span class="glyphicon glyphicon-remove" aria-hidden="true"></span></a></td>
+//   <td class="col-md-6"></td>
+// </tr>
 
-codegen()
+domc(node, scope)
 
-// This will produce code with straightforward set of DOM API calls to instantiate the node.
-// Important part that during compilation, it detects dynamic nodes,
-// and extract references to them, attaching it to the root node.
-// It has one argument `scope`, that used for synthethic event handlers binding
-(function anonymous(scope
+// This will produce function to clone and walk the node and get references to dynamic parts
+// It has two arguments, template `dom` node and `scope` that used for synthethic event handlers binding
+(function anonymous(dom,scope
 ) {
-const div11 = document.createElement("div");
-div11.setAttribute("id", "template");
-div11.__div11 = div11;
-div11.__click = scope.select;
-div11.__div11 = div11;
-const div12 = document.createElement("div");
-const text13 = document.createTextNode("");
-div11.__text13 = text13;
-div12.appendChild(text13);
-div11.appendChild(div12);
-const div14 = document.createElement("div");
-const text15 = document.createTextNode("");
-div11.__text15 = text15;
-div14.appendChild(text15);
-div11.appendChild(div14);
-return div11;
+let node = dom.cloneNode(true);
+
+let _f = node.firstChild;
+let _f_f = _f.firstChild;
+let _f_n = _f.nextSibling;
+let _f_n_f = _f_n.firstChild;
+let _f_n_f_f = _f_n_f.firstChild;
+let _f_n_n = _f_n.nextSibling;
+let _f_n_n_f = _f_n_n.firstChild;
+
+node.__a = node;
+node.__b = _f_f;
+const c = node.__c = _f_n_f;
+c.__click = scope.select;
+node.__d = _f_n_f_f;
+const e = node.__e = _f_n_n_f;
+e.__click = scope.del;
+
+return node;
 })
 
 // Also, codegen will produce function, that can later be used to 'rerender' instance
@@ -95,17 +101,19 @@ return div11;
 // - destructured scope
 // - root node, that has assigned references to its dynamic nodes
 // - result of previous rerender call. It used to detect actual changes, something like VDOM.
-(function anonymous({selected,select,name,surname,},node,current = {}
+(function anonymous({rowClass,selected,del,select,item,},node = this,current = node.__vdom || {}
 ) {
 const vdom = {};
-vdom.a = selected;
-vdom.b = name;
-vdom.c = name;
-vdom.d = surname;
-if (current.a !== vdom.a) node.__div11.className = vdom.a;
-if (current.b !== vdom.b) node.__div11.__clickData = vdom.b;
-if (current.c !== vdom.c) node.__text13.data = vdom.c;
-if (current.d !== vdom.d) node.__text15.data = vdom.d;
-return vdom;
+vdom.a = rowClass(item.id, selected);
+vdom.b = item.id;
+vdom.c = item;
+vdom.d = item.label;
+vdom.e = item;
+if (current.a !== vdom.a) node.__a.className = vdom.a;
+if (current.b !== vdom.b) node.__b.data = vdom.b;
+if (current.c !== vdom.c) node.__c.__clickData = vdom.c;
+if (current.d !== vdom.d) node.__d.data = vdom.d;
+if (current.e !== vdom.e) node.__e.__clickData = vdom.e;
+node.__vdom = vdom;
 })
 ```

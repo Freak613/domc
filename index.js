@@ -34,43 +34,23 @@ function setupSyntheticEvent(name) {
 // - str[idx] and str.slice are faster than regex matching
 //
 
-let tagCounter = 0
-
-let root, node, staticCode,
-tagName, tag, tagId, createElement, parent,
-attr, aname, avalue, eventType, 
-reactiveValue, handlerTokens,
+let attr, aname, avalue, eventType, 
+reactiveValue,
 vdomCode, compareCode, args, 
-vdomId, arg, appendCode, refsCode, 
+vdomId, arg, refsCode, 
 nodeData, eventHandler, parenIdx,
-eventHandlerArgs
+eventHandlerArgs, varCode, nodeType
 
-let stack = [], stackIdx = 0
-function codegen(node, parent, root) {
-    tagName = node.tagName
-    if (tagName !== undefined) {
-        tag = tagName.toLowerCase()
-        tagId = tag + (++tagCounter)
-        createElement = 'createElement'
-    } else {
-        if (node.data.trim() === '') return
-        tag = ''
-        tagId = 'text' + (++tagCounter)
-        createElement = 'createTextNode'
-    }
-    staticCode += `const ${tagId} = document.${createElement}("${tag}");\n`
+function codegen(node, pathId) {
+    nodeType = node.nodeType
     
-    if (root === undefined) root = tagId
-    
-    if (tagName !== undefined) {
+    if (nodeType !== 3) {
 
         // codegenAttributes
         if (node.attributes !== undefined) {
             for(attr of node.attributes) {
                 aname = attr.name
                 avalue = attr.value
-
-                if (aname === 'class') aname = 'className'
 
                 if (aname[0] === 'o' && aname[1] === 'n') {
 
@@ -83,38 +63,33 @@ function codegen(node, parent, root) {
                         eventHandler = reactiveValue.slice(0, parenIdx)
                         eventHandlerArgs = reactiveValue.slice(parenIdx + 1, reactiveValue.length - 1).split(',')
 
-                        staticCode += `${tagId}.__${eventType} = scope.${eventHandler};\n`
-
-                        refsCode += `${root}.__${tagId} = ${tagId};\n`
-
                         vdomId = makeid.possible.charAt(makeid.counter++)
+
+                        refsCode += `const ${vdomId} = node.__${vdomId} = ${pathId};\n`
+                        refsCode += `${vdomId}.__${eventType} = scope.${eventHandler};\n`
                         vdomCode += `vdom.${vdomId} = ${eventHandlerArgs};\n`
-                        compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) node.__${tagId}.__${eventType}Data = vdom.${vdomId};\n`
-                    } else {
-                        staticCode += `${tagId}.on${eventType} = ${avalue};\n`
+                        compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) node.__${vdomId}.__${eventType}Data = vdom.${vdomId};\n`
+
+                        node.removeAttribute(aname)
                     }
 
                 } else if (avalue.indexOf("${") >= 0) {
-                    if (aname === 'className') {
-                        refsCode += `${root}.__${tagId} = ${tagId};\n`
-
+                    if (aname === 'class') {
                         vdomId = makeid.possible.charAt(makeid.counter++)
-                        vdomCode += `vdom.${vdomId} = ${avalue.slice(2, avalue.length - 1)};\n`
-                        compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) node.__${tagId}.className = vdom.${vdomId};\n`
-                    } else {
-                        refsCode += `${root}.__${tagId} = ${tagId};\n`
 
-                        vdomId = makeid.possible.charAt(makeid.counter++)
+                        refsCode += `node.__${vdomId} = ${pathId};\n`
                         vdomCode += `vdom.${vdomId} = ${avalue.slice(2, avalue.length - 1)};\n`
-                        compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) node.__${tagId}.setAttribute("${aname}", vdom.${vdomId});\n`
-                    }
-                } else {
-                    if (aname === 'className') {
-                        staticCode += `${tagId}.${aname} = "${avalue}";\n`
+                        compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) node.__${vdomId}.className = vdom.${vdomId};\n`
                     } else {
-                        staticCode += `${tagId}.setAttribute("${aname}", "${avalue}");\n`
+                        vdomId = makeid.possible.charAt(makeid.counter++)
+
+                        refsCode += `node.__${vdomId} = ${pathId};\n`
+                        vdomCode += `vdom.${vdomId} = ${avalue.slice(2, avalue.length - 1)};\n`
+                        compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) node.__${vdomId}.setAttribute("${aname}", vdom.${vdomId});\n`
                     }
-                }     
+
+                    node.removeAttribute(aname)
+                }   
             }
         }
         // End codegenAttributes
@@ -122,67 +97,90 @@ function codegen(node, parent, root) {
     } else {
 
         // codegenText
-        nodeData = node.data
+        nodeData = node.nodeValue
         if (nodeData.indexOf("${") >= 0) {
-            refsCode += `${root}.__${tagId} = ${tagId};\n`
-
             vdomId = makeid.possible.charAt(makeid.counter++)
+
+            refsCode += `node.__${vdomId} = ${pathId};\n`
             vdomCode += `vdom.${vdomId} = ${nodeData.slice(2, nodeData.length - 1)};\n`
-            compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) node.__${tagId}.data = vdom.${vdomId};\n`
-        } else {
-            staticCode += `${node}.data = "${nodeData}"`
+            compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) node.__${vdomId}.data = vdom.${vdomId};\n`
+
+            node.nodeValue = ""
         }
         // End codegenText
 
     }
-
-    if (parent === root) {
-        staticCode += appendCode
-        appendCode = ''
-    }
-    if (parent !== undefined) {
-        appendCode = `${parent}.appendChild(${tagId});\n` + appendCode
-    }
-    return tagId
 }
 
 // Inspired by: https://gist.github.com/cowboy/958000
 function walker(node) {
-    let skip = false, tmp, lastNode
-    lastNode = root = codegen(node)
+    let skip = false, tmp
+    let pathId = 'node', prevPathId
+    codegen(node, pathId)
+    pathId = ''
     do {
         if (!skip && (tmp = node.firstChild)) {
+            if (tmp.nodeType === 3 && tmp.nodeValue.trim() === "") {
+                tmp.parentNode.removeChild(tmp)
+                continue
+            }
+
+            prevPathId = pathId
+            pathId += '_f'
+            varCode += `let ${pathId} = ${prevPathId || 'node'}.firstChild;\n` 
+            
+            codegen(tmp, pathId)
+
             skip = false
-            stack[stackIdx++] = parent
-            parent = lastNode
-            lastNode = codegen(tmp, parent, root)
         } else if (tmp = node.nextSibling) {
+            if (tmp.nodeType === 3 && tmp.nodeValue.trim() === "") {
+                tmp.parentNode.removeChild(tmp)
+                continue
+            }
+
+            prevPathId = pathId
+            pathId += '_n'
+            varCode += `let ${pathId} = ${prevPathId || 'node'}.nextSibling;\n` 
+            
+            codegen(tmp, pathId)
+
             skip = false
-            lastNode = codegen(tmp, parent, root)
         } else {
+            pathId = pathId.slice(0, pathId.length - 2)
             tmp = node.parentNode
-            parent = stack[--stackIdx]
             skip = true
         }
         node = tmp
     } while (node)
-    staticCode += appendCode + refsCode + `return ${root};`
 }
 
 function makeid() {}
 makeid.possible = "abcdefghijklmnopqrstuvwxyz"
 makeid.counter = 0
 
+function codeopt() {
+    const vars = varCode.match(/_f\w*/g)
+    let i = vars.length, _var
+    while(--i) {
+        _var = vars[i]
+        if (varCode.indexOf(` ${_var}.`) === -1 && refsCode.indexOf(` ${_var};`) === -1) {
+            varCode = varCode.replace(new RegExp(`let ${_var} = .*?;\n`), '')
+        }
+    }
+}
+ 
 let templateInstance
 class Template {
     constructor(dom) {
-        staticCode = vdomCode = compareCode = appendCode = refsCode = ''
+        varCode = vdomCode = compareCode = refsCode = ''
+        this.dom = dom
         walker(dom)
-        this.create = Function("scope", staticCode)
+        codeopt()
+        this.create = Function("dom", "scope", `let node = dom.cloneNode(true);\n\n` + varCode + '\n' + refsCode + `\nreturn node;`)
         this.update = Function("{" + args + "}", "node = this", "current = node.__vdom || {}", 'const vdom = {};\n' + vdomCode + compareCode + "node.__vdom = vdom;")
     }
     createInstance(scope) {
-        templateInstance = this.create(scope)
+        templateInstance = this.create(this.dom, scope)
         templateInstance.update = this.update
         templateInstance.update(scope)
         return templateInstance
