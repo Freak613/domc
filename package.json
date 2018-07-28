@@ -1,7 +1,7 @@
 {
   "name": "domc",
   "version": "0.0.4",
-  "description": "DOM Node to DOM API compiler",
+  "description": "DOM compiler",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
