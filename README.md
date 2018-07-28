@@ -25,7 +25,7 @@ node.update({name: 'Bob', surname: 'Marley'})
 
 ## Performance demo
 
-The code: https://github.com/Freak613/js-framework-benchmark/tree/master/frameworks/domc-v0.0.2-non-keyed
+The code: https://github.com/Freak613/js-framework-benchmark/tree/master/frameworks/domc-v0.0.4-non-keyed
 
 ![Performance](performance.png?raw=true "Performance")
 
