@@ -103,7 +103,7 @@ function codegen(node, pathId) {
 
             refsCode += `node.__${vdomId} = ${pathId};\n`
             vdomCode += `vdom.${vdomId} = ${nodeData.slice(2, nodeData.length - 1)};\n`
-            compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) node.__${vdomId}.data = vdom.${vdomId};\n`
+            compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) node.__${vdomId}.nodeValue = vdom.${vdomId};\n`
 
             node.nodeValue = ""
         }
@@ -177,7 +177,7 @@ class Template {
         walker(dom)
         codeopt()
         this.create = Function("dom", "scope", `let node = dom.cloneNode(true);\n\n` + varCode + '\n' + refsCode + `\nreturn node;`)
-        this.update = Function("{" + args + "}", "node = this", "current = node.__vdom || {}", 'const vdom = {};\n' + vdomCode + compareCode + "node.__vdom = vdom;")
+        this.update = Function("{" + args + "}", 'const node = this;\nconst current = node.__vdom || {};\nconst vdom = {};\n' + vdomCode + compareCode + "node.__vdom = vdom;")
     }
     createInstance(scope) {
         templateInstance = this.create(this.dom, scope)
