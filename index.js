@@ -49,6 +49,8 @@ class Compiler {
         this.refsCode = 
         this.directiveSetupCode = 
         this.directiveUpdateCode = ''
+
+        this.scopeVars = {}
     }
 
     // Inspired by walker: https://gist.github.com/cowboy/958000
@@ -118,7 +120,7 @@ class Compiler {
 
                         const vdomId = makeid.possible.charAt(makeid.counter++)
 
-                        this.directiveSetupCode += `node.__${vdomId} = CD.${directive}(${pathId}, scope, "${avalue}");\n`
+                        this.directiveSetupCode += `node.__${vdomId} = CD.${directive}(${pathId}, "${avalue}");\n`
                         this.directiveUpdateCode += `node.__${vdomId}(scope);\n`
 
                         return 1
@@ -158,6 +160,18 @@ class Compiler {
                             }
 
                             node.removeAttribute(aname)
+
+                            for(let i = 0, code, token; i < eventHandlerArgs.length; i++) {
+                                token = eventHandlerArgs[i]
+                                code = token.charCodeAt(0)
+                                if (code >= 97 && code <= 122) {
+                                    if (token.indexOf('.') >= 0) {
+                                        this.scopeVars[token.slice(0, token.indexOf('.'))] = true    
+                                    } else {
+                                        this.scopeVars[token] = true
+                                    }
+                                }
+                            }
                         }
 
                     } else if (avalue.indexOf("${") >= 0) {
@@ -173,6 +187,19 @@ class Compiler {
                             this.refsCode += `node.__${vdomId} = ${pathId};\n`
                             this.vdomCode += `vdom.${vdomId} = ${avalue.slice(2, avalue.length - 1)};\n`
                             this.compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) node.__${vdomId}.setAttribute("${aname}", vdom.${vdomId});\n`
+                        }
+
+                        const tokens = avalue.slice(2, avalue.length - 1).split(' ')
+                        for(let i = 0, code, token; i < tokens.length; i++) {
+                            token = tokens[i]
+                            code = token.charCodeAt(0)
+                            if (code >= 97 && code <= 122) {
+                                if (token.indexOf('.') >= 0) {
+                                    this.scopeVars[token.slice(0, token.indexOf('.'))] = true    
+                                } else {
+                                    this.scopeVars[token] = true
+                                }
+                            }
                         }
 
                         node.removeAttribute(aname)
@@ -193,6 +220,19 @@ class Compiler {
                 this.compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) node.__${vdomId}.nodeValue = vdom.${vdomId};\n`
 
                 node.nodeValue = ""
+
+                const tokens = nodeData.slice(2, nodeData.length - 1).split(' ')
+                for(let i = 0, code, token; i < tokens.length; i++) {
+                    token = tokens[i]
+                    code = token.charCodeAt(0)
+                    if (code >= 97 && code <= 122) {
+                        if (token.indexOf('.') >= 0) {
+                            this.scopeVars[token.slice(0, token.indexOf('.'))] = true    
+                        } else {
+                            this.scopeVars[token] = true
+                        }
+                    }
+                }
             }
             // End codegenText
 
@@ -201,30 +241,30 @@ class Compiler {
         return 0
     }
 
-    codeopt() {
-        let varCode = this.varCode,
-            refsCode = this.refsCode
+    // codeopt() {
+    //     let varCode = this.varCode,
+    //         refsCode = this.refsCode
 
-        if (varCode.length === 0) return
+    //     if (varCode.length === 0) return
 
-        const vars = varCode.match(/_f\w*/g)
-        let i = vars.length, _var
-        while(--i) {
-            _var = vars[i]
-            if (varCode.indexOf(` ${_var}.`) === -1 && refsCode.indexOf(` ${_var};`) === -1) {
-                varCode = varCode.replace(new RegExp(`let ${_var} = .*?;\n`), '')
-            }
-        }
+    //     const vars = varCode.match(/_f\w*/g)
+    //     let i = vars.length, _var
+    //     while(--i) {
+    //         _var = vars[i]
+    //         if (varCode.indexOf(` ${_var}.`) === -1 && refsCode.indexOf(` ${_var};`) === -1) {
+    //             varCode = varCode.replace(new RegExp(`let ${_var} = .*?;\n`), '')
+    //         }
+    //     }
 
-        this.varCode = varCode
-    }
+    //     this.varCode = varCode
+    // }
 
     createFn() {
         return Function("node", "scope", "CD", this.varCode + '\n' + this.refsCode + '\n' + this.directiveSetupCode)
     }
-    updateFn(scope) {
+    updateFn() {
         let argsStr = ''
-        for(let arg of Object.keys(scope)) argsStr += arg + ","        
+        for(let arg of Object.keys(this.scopeVars)) argsStr += arg + ","   
         return Function("scope", `const node = this;\n\n${this.vdomCode.length > 0 ? `const {${argsStr}} = scope;\nconst current = node.__vdom || {};\n\nconst vdom = {};\n${this.vdomCode}\n${this.compareCode}\nnode.__vdom = vdom;\n` : ''}${this.directiveUpdateCode}`)
     }
 }
@@ -249,12 +289,13 @@ class Template {
     }
 }
 
-function domc(dom, scope) {
+export function domc(dom) {
     const c = new Compiler()
     c.compile(dom)
+    // console.debug(c.scopeVars)
     const createFn = c.createFn()
-    const updateFn = c.updateFn(scope)
-    console.debug({createFn, updateFn})
+    const updateFn = c.updateFn()
+    // console.debug({createFn, updateFn})
     return new Template(dom, createFn, updateFn)
 }
 

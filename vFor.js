@@ -1,7 +1,7 @@
 
 import {customDirectives, domc} from './index.js'
 
-function setup(node, scope, directive = "item of data") {
+function setup(node, directive = "item of data") {
     const parent = node.parentNode
     parent.textContent = ""
     let renderedValues = []
@@ -10,7 +10,7 @@ function setup(node, scope, directive = "item of data") {
     const dataKey = directive.slice(ofIdx + 4)
     const itemKey = directive.slice(0, ofIdx)
 
-    const template = domc(node, scope)
+    const template = domc(node)
 
     return scope => {
         const localScope = Object.assign({}, scope)
