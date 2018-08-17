@@ -132,17 +132,29 @@ class Compiler {
                         if (avalue.indexOf("${") >= 0) {
                             const reactiveValue = avalue.slice(2, avalue.length - 1)
                             const parenIdx = reactiveValue.indexOf("(")
-                            const eventHandler = reactiveValue.slice(0, parenIdx)
-                            const eventHandlerArgs = reactiveValue.slice(parenIdx + 1, reactiveValue.length - 1).split(',')
+                            
+                            let eventHandler, eventHandlerArgs
+                            if (parenIdx >= 0) {
+                                eventHandler = reactiveValue.slice(0, parenIdx)
+                                const eventHandlerArgsStr = reactiveValue.slice(parenIdx + 1, reactiveValue.length - 1)
+                                if (eventHandlerArgsStr.length > 0) {
+                                    eventHandlerArgs = eventHandlerArgsStr.split(',')
+                                } else {
+                                    eventHandlerArgs = []
+                                }
+                            } else {
+                                eventHandler = reactiveValue
+                                eventHandlerArgs = []
+                            }
 
-                            const vdomId = makeid.possible.charAt(makeid.counter++)
-
-                            this.refsCode += `const ${vdomId} = node.__${vdomId} = ${pathId};\n`
-                            this.refsCode += `${vdomId}.__${eventType} = scope.${eventHandler};\n`
-
-                            if (parenIdx < reactiveValue.length - 2) {
+                            if (eventHandlerArgs.length > 0) {
+                                const vdomId = makeid.possible.charAt(makeid.counter++)
+                                this.refsCode += `const ${vdomId} = node.__${vdomId} = ${pathId};\n`
+                                this.refsCode += `${vdomId}.__${eventType} = scope.${eventHandler};\n`
                                 this.vdomCode += `vdom.${vdomId} = ${eventHandlerArgs};\n`    
                                 this.compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) node.__${vdomId}.__${eventType}Data = vdom.${vdomId};\n`
+                            } else {
+                                this.refsCode += `${pathId}.__${eventType} = scope.${eventHandler};\n`
                             }
 
                             node.removeAttribute(aname)
@@ -212,8 +224,8 @@ class Compiler {
     }
     updateFn(scope) {
         let argsStr = ''
-        for(let arg of Object.keys(scope)) argsStr += arg + ","
-        return Function("scope", 'const {' + argsStr + '} = scope;\nconst node = this;\nconst current = node.__vdom || {};\nconst vdom = {};\n' + this.vdomCode + this.compareCode + "node.__vdom = vdom;" + '\n\n' + this.directiveUpdateCode)
+        for(let arg of Object.keys(scope)) argsStr += arg + ","        
+        return Function("scope", `const node = this;\n\n${this.vdomCode.length > 0 ? `const {${argsStr}} = scope;\nconst current = node.__vdom || {};\n\nconst vdom = {};\n${this.vdomCode}\n${this.compareCode}\nnode.__vdom = vdom;\n` : ''}${this.directiveUpdateCode}`)
     }
 }
  
@@ -237,12 +249,12 @@ class Template {
     }
 }
 
-export function domc(dom, scope) {
+function domc(dom, scope) {
     const c = new Compiler()
     c.compile(dom)
     const createFn = c.createFn()
     const updateFn = c.updateFn(scope)
-    // console.debug({createFn, updateFn})
+    console.debug({createFn, updateFn})
     return new Template(dom, createFn, updateFn)
 }
 
