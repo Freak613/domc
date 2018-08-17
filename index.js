@@ -237,7 +237,7 @@ class Template {
     }
 }
 
-function domc(dom, scope) {
+export function domc(dom, scope) {
     const c = new Compiler()
     c.compile(dom)
     const createFn = c.createFn()
