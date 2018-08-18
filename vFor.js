@@ -33,6 +33,15 @@ function setup(node, directive = "item of data") {
 }
 customDirectives.for = setup
 
+// This is almost straightforward implementation of reconcillation algorithm
+// based on ivi documentation:
+// https://github.com/localvoid/ivi/blob/2c81ead934b9128e092cc2a5ef2d3cabc73cb5dd/packages/ivi/src/vdom/implementation.ts#L1366
+// With some fast paths from Surplus implementation:
+// https://github.com/adamhaile/surplus/blob/master/src/runtime/content.ts#L86
+//
+// How this implementation differs from others, is that it's working with data directly,
+// without maintaining nodes arrays, and uses dom props firstChild/lastChild/nextSibling
+// for markers moving.
 function reconcile(parent, renderedValues, data, createFn, noOp) {
     // Fast path for clear
     if (data.length === 0) {
@@ -213,6 +222,9 @@ function reconcile(parent, renderedValues, data, createFn, noOp) {
         }
     }
 }
+
+// Picked from
+// https://github.com/adamhaile/surplus/blob/master/src/runtime/content.ts#L368
 
 // return an array of the indices of ns that comprise the longest increasing subsequence within ns
 function longestPositiveIncreasingSubsequence(ns, newStart) {
