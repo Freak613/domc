@@ -189,7 +189,7 @@ class Compiler {
                             this.compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) node.__${vdomId}.setAttribute("${aname}", vdom.${vdomId});\n`
                         }
 
-                        const tokens = avalue.slice(2, avalue.length - 1).split(' ')
+                        const tokens = avalue.slice(2, avalue.length - 1).split(/[\s\(\)]/g)
                         for(let i = 0, code, token; i < tokens.length; i++) {
                             token = tokens[i]
                             code = token.charCodeAt(0)
@@ -221,7 +221,7 @@ class Compiler {
 
                 node.nodeValue = ""
 
-                const tokens = nodeData.slice(2, nodeData.length - 1).split(' ')
+                const tokens = nodeData.slice(2, nodeData.length - 1).split(/[\s\(\)]/g)
                 for(let i = 0, code, token; i < tokens.length; i++) {
                     token = tokens[i]
                     code = token.charCodeAt(0)
