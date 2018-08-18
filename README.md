@@ -13,7 +13,7 @@ import domc from 'domc'
 //     <div>${surname}</div>
 // </div>
 // compile it into template
-const template = domc(document.querySelector('#template'), {name: null, surname: null})
+const template = domc(document.querySelector('#template'))
 
 // Create template instance with given values
 const node = template.createInstance({name: 'John', surname: 'Wick'})
@@ -48,6 +48,33 @@ it will be parsed into `select` call and `item` as function argument.
 
 Currently it has limitation: only one callback argument supported.
 Also, it doesn't do bubbling after first handler has been met.
+
+## Custom Directives
+
+Example of directives can be found in implementation of `v-for` and `v-map` algorithms.
+To create directive, we need to import `customDirectives` from domc, it's plain object,
+and assign setup code to corresponding v-key.
+
+```javascript
+import {customDirectives} from 'domc'
+
+// The setup function has following api:
+// - node argument, that has this directive
+// - directive is nodeAttribute value, which can be parsed for directive needs
+function setup(node, directive) {
+    ...
+    // It should return function, that accept scope argument and produce necessary updates on node
+    return function(scope) {
+        ...
+    }
+}
+
+// To bind setup function to directive key, extend customDirectives object
+customDirectives.myDirective = setup
+
+// After that you can call directive from template
+// <div v-myDirective="arg"></div>
+```
 
 ## How it works
 
