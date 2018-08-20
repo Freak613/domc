@@ -110,8 +110,8 @@ class Compiler {
             // codegenAttributes
             if (node.attributes !== undefined) {
                 for(let attr of node.attributes) {
-                    const aname = attr.name
-                    const avalue = attr.value
+                    let aname = attr.name
+                    let avalue = attr.value
 
                     if (aname[0] === 'v' && aname[1] === '-') {
                         node.removeAttribute(aname)
@@ -179,7 +179,7 @@ class Compiler {
                             const vdomId = makeid.possible.charAt(makeid.counter++)
 
                             this.refsCode += `node.__${vdomId} = ${pathId};\n`
-                            this.vdomCode += `vdom.${vdomId} = ${avalue.slice(2, avalue.length - 1)};\n`
+                            this.vdomCode += `vdom.${vdomId} = \`${avalue}\`;\n`
                             this.compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) node.__${vdomId}.className = vdom.${vdomId};\n`
                         } else {
                             const vdomId = makeid.possible.charAt(makeid.counter++)
@@ -189,17 +189,22 @@ class Compiler {
                             this.compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) node.__${vdomId}.setAttribute("${aname}", vdom.${vdomId});\n`
                         }
 
-                        const tokens = avalue.slice(2, avalue.length - 1).split(/[\s\(\)]/g)
-                        for(let i = 0, code, token; i < tokens.length; i++) {
-                            token = tokens[i]
-                            code = token.charCodeAt(0)
-                            if (code >= 97 && code <= 122) {
-                                if (token.indexOf('.') >= 0) {
-                                    this.scopeVars[token.slice(0, token.indexOf('.'))] = true    
-                                } else {
-                                    this.scopeVars[token] = true
+                        let dIdx, eIdx, tokens
+                        while((dIdx = avalue.indexOf('${')) >= 0) {
+                            eIdx = avalue.indexOf('}')
+                            tokens = avalue.slice(dIdx + 2, eIdx).split(/[\s\(\)]/g)
+                            for(let i = 0, code, token; i < tokens.length; i++) {
+                                token = tokens[i]
+                                code = token.charCodeAt(0)
+                                if (code >= 97 && code <= 122) {
+                                    if (token.indexOf('.') >= 0) {
+                                        this.scopeVars[token.slice(0, token.indexOf('.'))] = true    
+                                    } else {
+                                        this.scopeVars[token] = true
+                                    }
                                 }
                             }
+                            avalue = avalue.slice(eIdx + 1)
                         }
 
                         node.removeAttribute(aname)
@@ -211,27 +216,32 @@ class Compiler {
         } else {
 
             // codegenText
-            const nodeData = node.nodeValue
+            let nodeData = node.nodeValue
             if (nodeData.indexOf("${") >= 0) {
                 const vdomId = makeid.possible.charAt(makeid.counter++)
 
                 this.refsCode += `node.__${vdomId} = ${pathId};\n`
-                this.vdomCode += `vdom.${vdomId} = ${nodeData.slice(2, nodeData.length - 1)};\n`
+                this.vdomCode += `vdom.${vdomId} = \`${nodeData}\`;\n`
                 this.compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) node.__${vdomId}.nodeValue = vdom.${vdomId};\n`
 
                 node.nodeValue = ""
 
-                const tokens = nodeData.slice(2, nodeData.length - 1).split(/[\s\(\)]/g)
-                for(let i = 0, code, token; i < tokens.length; i++) {
-                    token = tokens[i]
-                    code = token.charCodeAt(0)
-                    if (code >= 97 && code <= 122) {
-                        if (token.indexOf('.') >= 0) {
-                            this.scopeVars[token.slice(0, token.indexOf('.'))] = true    
-                        } else {
-                            this.scopeVars[token] = true
+                let dIdx, eIdx, tokens
+                while((dIdx = nodeData.indexOf('${')) >= 0) {
+                    eIdx = nodeData.indexOf('}')
+                    tokens = nodeData.slice(dIdx + 2, eIdx).split(/[\s\(\)]/g)
+                    for(let i = 0, code, token; i < tokens.length; i++) {
+                        token = tokens[i]
+                        code = token.charCodeAt(0)
+                        if (code >= 97 && code <= 122) {
+                            if (token.indexOf('.') >= 0) {
+                                this.scopeVars[token.slice(0, token.indexOf('.'))] = true    
+                            } else {
+                                this.scopeVars[token] = true
+                            }
                         }
                     }
+                    nodeData = nodeData.slice(eIdx + 1)
                 }
             }
             // End codegenText
