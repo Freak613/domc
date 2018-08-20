@@ -131,67 +131,65 @@ class Compiler {
                         const eventType = aname.slice(2)
                         setupSyntheticEvent(eventType)
 
-                        if (avalue.indexOf("${") >= 0) {
-                            const reactiveValue = avalue.slice(2, avalue.length - 1)
-                            const parenIdx = reactiveValue.indexOf("(")
-                            
-                            let eventHandler, eventHandlerArgs
-                            if (parenIdx >= 0) {
-                                eventHandler = reactiveValue.slice(0, parenIdx)
-                                const eventHandlerArgsStr = reactiveValue.slice(parenIdx + 1, reactiveValue.length - 1)
-                                if (eventHandlerArgsStr.length > 0) {
-                                    eventHandlerArgs = eventHandlerArgsStr.split(',')
-                                } else {
-                                    eventHandlerArgs = []
-                                }
+                        const reactiveValue = avalue
+                        const parenIdx = reactiveValue.indexOf("(")
+                        
+                        let eventHandler, eventHandlerArgs
+                        if (parenIdx >= 0) {
+                            eventHandler = reactiveValue.slice(0, parenIdx)
+                            const eventHandlerArgsStr = reactiveValue.slice(parenIdx + 1, reactiveValue.length - 1)
+                            if (eventHandlerArgsStr.length > 0) {
+                                eventHandlerArgs = eventHandlerArgsStr.split(',')
                             } else {
-                                eventHandler = reactiveValue
                                 eventHandlerArgs = []
                             }
+                        } else {
+                            eventHandler = reactiveValue
+                            eventHandlerArgs = []
+                        }
 
-                            if (eventHandlerArgs.length > 0) {
-                                const vdomId = makeid.possible.charAt(makeid.counter++)
-                                this.refsCode += `const ${vdomId} = node.__${vdomId} = ${pathId};\n`
-                                this.refsCode += `${vdomId}.__${eventType} = scope.${eventHandler};\n`
-                                this.vdomCode += `vdom.${vdomId} = ${eventHandlerArgs};\n`    
-                                this.compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) node.__${vdomId}.__${eventType}Data = vdom.${vdomId};\n`
-                            } else {
-                                this.refsCode += `${pathId}.__${eventType} = scope.${eventHandler};\n`
-                            }
+                        if (eventHandlerArgs.length > 0) {
+                            const vdomId = makeid.possible.charAt(makeid.counter++)
+                            this.refsCode += `const ${vdomId} = node.__${vdomId} = ${pathId};\n`
+                            this.refsCode += `${vdomId}.__${eventType} = scope.${eventHandler};\n`
+                            this.vdomCode += `vdom.${vdomId} = ${eventHandlerArgs};\n`    
+                            this.compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) node.__${vdomId}.__${eventType}Data = vdom.${vdomId};\n`
+                        } else {
+                            this.refsCode += `${pathId}.__${eventType} = scope.${eventHandler};\n`
+                        }
 
-                            node.removeAttribute(aname)
+                        node.removeAttribute(aname)
 
-                            for(let i = 0, code, token; i < eventHandlerArgs.length; i++) {
-                                token = eventHandlerArgs[i]
-                                code = token.charCodeAt(0)
-                                if (code >= 97 && code <= 122) {
-                                    if (token.indexOf('.') >= 0) {
-                                        this.scopeVars[token.slice(0, token.indexOf('.'))] = true    
-                                    } else {
-                                        this.scopeVars[token] = true
-                                    }
+                        for(let i = 0, code, token; i < eventHandlerArgs.length; i++) {
+                            token = eventHandlerArgs[i]
+                            code = token.charCodeAt(0)
+                            if (code >= 97 && code <= 122) {
+                                if (token.indexOf('.') >= 0) {
+                                    this.scopeVars[token.slice(0, token.indexOf('.'))] = true    
+                                } else {
+                                    this.scopeVars[token] = true
                                 }
                             }
                         }
 
-                    } else if (avalue.indexOf("${") >= 0) {
+                    } else if (avalue.indexOf("{{") >= 0) {
                         if (aname === 'class') {
                             const vdomId = makeid.possible.charAt(makeid.counter++)
 
                             this.refsCode += `node.__${vdomId} = ${pathId};\n`
-                            this.vdomCode += `vdom.${vdomId} = \`${avalue}\`;\n`
+                            this.vdomCode += `vdom.${vdomId} = \`${avalue.replace(/{{/g, '${').replace(/}}/g, '}')}\`;\n`
                             this.compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) node.__${vdomId}.className = vdom.${vdomId};\n`
                         } else {
                             const vdomId = makeid.possible.charAt(makeid.counter++)
 
                             this.refsCode += `node.__${vdomId} = ${pathId};\n`
-                            this.vdomCode += `vdom.${vdomId} = ${avalue.slice(2, avalue.length - 1)};\n`
+                            this.vdomCode += `vdom.${vdomId} = \`${avalue.replace(/{{/g, '${').replace(/}}/g, '}')}\`;\n`
                             this.compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) node.__${vdomId}.setAttribute("${aname}", vdom.${vdomId});\n`
                         }
 
                         let dIdx, eIdx, tokens
-                        while((dIdx = avalue.indexOf('${')) >= 0) {
-                            eIdx = avalue.indexOf('}')
+                        while((dIdx = avalue.indexOf('{{')) >= 0) {
+                            eIdx = avalue.indexOf('}}')
                             tokens = avalue.slice(dIdx + 2, eIdx).split(/[\s\(\)]/g)
                             for(let i = 0, code, token; i < tokens.length; i++) {
                                 token = tokens[i]
@@ -217,18 +215,18 @@ class Compiler {
 
             // codegenText
             let nodeData = node.nodeValue
-            if (nodeData.indexOf("${") >= 0) {
+            if (nodeData.indexOf("{{") >= 0) {
                 const vdomId = makeid.possible.charAt(makeid.counter++)
 
                 this.refsCode += `node.__${vdomId} = ${pathId};\n`
-                this.vdomCode += `vdom.${vdomId} = \`${nodeData}\`;\n`
+                this.vdomCode += `vdom.${vdomId} = \`${nodeData.replace(/{{/g, '${').replace(/}}/g, '}')}\`;\n`
                 this.compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) node.__${vdomId}.nodeValue = vdom.${vdomId};\n`
 
                 node.nodeValue = ""
 
                 let dIdx, eIdx, tokens
-                while((dIdx = nodeData.indexOf('${')) >= 0) {
-                    eIdx = nodeData.indexOf('}')
+                while((dIdx = nodeData.indexOf('{{')) >= 0) {
+                    eIdx = nodeData.indexOf('}}')
                     tokens = nodeData.slice(dIdx + 2, eIdx).split(/[\s\(\)]/g)
                     for(let i = 0, code, token; i < tokens.length; i++) {
                         token = tokens[i]
@@ -305,7 +303,7 @@ export function domc(dom) {
     // console.debug(c.scopeVars)
     const createFn = c.createFn()
     const updateFn = c.updateFn()
-    // console.debug({createFn, updateFn})
+    console.debug({createFn, updateFn})
     return new Template(dom, createFn, updateFn)
 }
 
