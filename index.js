@@ -120,7 +120,7 @@ class Compiler {
 
                         const vdomId = makeid.possible.charAt(makeid.counter++)
 
-                        this.directiveSetupCode += `node.__${vdomId} = CD.${directive}(${pathId}, "${avalue}");\n`
+                        this.directiveSetupCode += `node.__${vdomId} = utils.${directive}(${pathId}, "${avalue}");\n`
                         this.directiveUpdateCode += `node.__${vdomId}(scope);\n`
 
                         return 1
@@ -214,7 +214,7 @@ class Compiler {
         } else {
 
             // codegenText
-            let nodeData = node.nodeValue
+            let nodeData = node.nodeValue.trim()
             if (nodeData.indexOf("{{") >= 0) {
                 const vdomId = makeid.possible.charAt(makeid.counter++)
 
@@ -268,7 +268,7 @@ class Compiler {
     // }
 
     createFn() {
-        return Function("node", "scope", "CD", this.varCode + '\n' + this.refsCode + '\n' + this.directiveSetupCode)
+        return Function("node", "scope", "utils", this.varCode + '\n' + this.refsCode + '\n' + this.directiveSetupCode)
     }
     updateFn() {
         let argsStr = ''
@@ -306,5 +306,6 @@ export function domc(dom) {
     console.debug({createFn, updateFn})
     return new Template(dom, createFn, updateFn)
 }
+domc.customDirectives = customDirectives
 
 export default domc
