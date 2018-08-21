@@ -320,12 +320,24 @@ export function domc(dom) {
 domc.customDirectives = customDirectives
 
 const compilerTemplate = document.createElement('template')
-domc.component = (tag, template) => {
+domc.component = (tag, template, localStateFn) => {
     compilerTemplate.innerHTML = template.trim()
     template = compilerTemplate.content.firstChild
     let cNode = domc(template)
     return domc.customDirectives[tag] = (scope, slot) => {
-        let node = cNode.createInstance(scope)
+        let node
+        if (localStateFn !== undefined) {
+            let localScope = Object.assign({}, scope)
+            localStateFn(localScope)
+            node = cNode.createInstance(localScope)
+            let updateFn = node.update
+            node.update = scope => {
+                localScope = Object.assign({}, scope, localScope)
+                updateFn.call(node, localScope)
+            }
+        } else {
+            node = cNode.createInstance(scope)
+        }
         slot.parentNode.replaceChild(node, slot)
         return node
     }
