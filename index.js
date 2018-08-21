@@ -103,7 +103,17 @@ class Compiler {
     }
 
     codegen(node, pathId) {
-        const nodeType = node.nodeType
+        let nodeType = node.nodeType,
+            tag = node.nodeName
+
+        if (tag.indexOf('-') > 0) {
+            const vdomId = makeid.possible.charAt(makeid.counter++)
+
+            this.directiveSetupCode += `node.__${vdomId} = utils["${tag.toLowerCase()}"](scope, ${pathId});\n`
+            this.directiveUpdateCode += `node.__${vdomId}.update(scope);\n`
+
+            return 1
+        }
         
         if (nodeType !== 3) {
 
@@ -306,6 +316,19 @@ export function domc(dom) {
     console.debug({createFn, updateFn})
     return new Template(dom, createFn, updateFn)
 }
+
 domc.customDirectives = customDirectives
+
+const compilerTemplate = document.createElement('template')
+domc.component = (tag, template) => {
+    compilerTemplate.innerHTML = template.trim()
+    template = compilerTemplate.content.firstChild
+    let cNode = domc(template)
+    return domc.customDirectives[tag] = (scope, slot) => {
+        let node = cNode.createInstance(scope)
+        slot.parentNode.replaceChild(node, slot)
+        return node
+    }
+}
 
 export default domc
