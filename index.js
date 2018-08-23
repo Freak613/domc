@@ -51,12 +51,14 @@ class Compiler {
         this.directiveUpdateCode = ''
 
         this.scopeVars = {}
+        this.component = null
     }
 
     // Inspired by walker: https://gist.github.com/cowboy/958000
     compile(root) {
         let skip = false, tmp, pathId = 'node', prevPathId, pahtIdLen, node = root, canIGoDeep
-        this.codegen(node, pathId)
+        canIGoDeep = this.codegen(node, pathId)
+        if (canIGoDeep > 0) return
         pathId = ''
         do {
             if (!skip && (tmp = node.firstChild)) {
@@ -105,15 +107,6 @@ class Compiler {
     codegen(node, pathId) {
         let nodeType = node.nodeType,
             tag = node.nodeName
-
-        if (tag.indexOf('-') > 0) {
-            const vdomId = makeid.possible.charAt(makeid.counter++)
-
-            this.directiveSetupCode += `let __${vdomId} = utils["${tag.toLowerCase()}"](scope, ${pathId});\n`
-            this.directiveUpdateCode += `__${vdomId}.update(scope);\n`
-
-            return 1
-        }
         
         if (nodeType !== 3) {
 
@@ -125,12 +118,14 @@ class Compiler {
 
                     if (aname[0] === 'i' && aname[1] === 's') {
                         node.removeAttribute(aname)
+                        if (pathId === 'node') {
+                            this.component = customDirectives[avalue]
+                        } else {
+                            const vdomId = makeid.possible.charAt(makeid.counter++)
 
-                        const vdomId = makeid.possible.charAt(makeid.counter++)
-
-                        this.directiveSetupCode += `let __${vdomId} = utils["${avalue}"](scope, ${pathId});\n`
-                        this.directiveUpdateCode += `__${vdomId}.update(scope);\n`
-
+                            this.directiveSetupCode += `let __${vdomId} = utils["${avalue}"](scope);\n${pathId}.parentNode.replaceChild(__${vdomId}, ${pathId});\n`
+                            this.directiveUpdateCode += `  __${vdomId}.update(scope);\n`
+                        }
                         return 1
                     }
 
@@ -142,7 +137,7 @@ class Compiler {
                         const vdomId = makeid.possible.charAt(makeid.counter++)
 
                         this.directiveSetupCode += `let __${vdomId} = utils.${directive}(${pathId}, "${avalue}");\n`
-                        this.directiveUpdateCode += `__${vdomId}(scope);\n`
+                        this.directiveUpdateCode += `    __${vdomId}(scope);\n`
 
                         return 1
                     }
@@ -171,10 +166,9 @@ class Compiler {
 
                         if (eventHandlerArgs.length > 0) {
                             const vdomId = makeid.possible.charAt(makeid.counter++)
-                            this.refsCode += `let __${vdomId} = ${pathId};\n`
-                            this.refsCode += `__${vdomId}.__${eventType} = scope.${eventHandler};\n`
-                            this.vdomCode += `vdom.${vdomId} = ${eventHandlerArgs};\n`    
-                            this.compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) __${vdomId}.__${eventType}Data = vdom.${vdomId};\n`
+                            this.refsCode += `${pathId}.__${eventType} = scope.${eventHandler};\n`
+                            this.vdomCode += `    vdom.${vdomId} = ${eventHandlerArgs};\n`    
+                            this.compareCode +=`    if (current.${vdomId} !== vdom.${vdomId}) ${pathId}.__${eventType}Data = vdom.${vdomId};\n`
                         } else {
                             this.refsCode += `${pathId}.__${eventType} = scope.${eventHandler};\n`
                         }
@@ -197,15 +191,13 @@ class Compiler {
                         if (aname === 'class') {
                             const vdomId = makeid.possible.charAt(makeid.counter++)
 
-                            this.refsCode += `let __${vdomId} = ${pathId};\n`
-                            this.vdomCode += `vdom.${vdomId} = \`${avalue.replace(/{{/g, '${').replace(/}}/g, '}')}\`;\n`
-                            this.compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) __${vdomId}.className = vdom.${vdomId};\n`
+                            this.vdomCode += `    vdom.${vdomId} = \`${avalue.replace(/{{/g, '${').replace(/}}/g, '}')}\`;\n`
+                            this.compareCode +=`    if (current.${vdomId} !== vdom.${vdomId}) ${pathId}.className = vdom.${vdomId};\n`
                         } else {
                             const vdomId = makeid.possible.charAt(makeid.counter++)
 
-                            this.refsCode += `let __${vdomId} = ${pathId};\n`
-                            this.vdomCode += `vdom.${vdomId} = \`${avalue.replace(/{{/g, '${').replace(/}}/g, '}')}\`;\n`
-                            this.compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) __${vdomId}.setAttribute("${aname}", vdom.${vdomId});\n`
+                            this.vdomCode += `    vdom.${vdomId} = \`${avalue.replace(/{{/g, '${').replace(/}}/g, '}')}\`;\n`
+                            this.compareCode +=`    if (current.${vdomId} !== vdom.${vdomId}) ${pathId}.setAttribute("${aname}", vdom.${vdomId});\n`
                         }
 
                         let dIdx, eIdx, tokens
@@ -239,9 +231,8 @@ class Compiler {
             if (nodeData.indexOf("{{") >= 0) {
                 const vdomId = makeid.possible.charAt(makeid.counter++)
 
-                this.refsCode += `let __${vdomId} = ${pathId};\n`
-                this.vdomCode += `vdom.${vdomId} = \`${nodeData.replace(/{{/g, '${').replace(/}}/g, '}')}\`;\n`
-                this.compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) __${vdomId}.nodeValue = vdom.${vdomId};\n`
+                this.vdomCode += `    vdom.${vdomId} = \`${nodeData.replace(/{{/g, '${').replace(/}}/g, '}')}\`;\n`
+                this.compareCode +=`    if (current.${vdomId} !== vdom.${vdomId}) ${pathId}.nodeValue = vdom.${vdomId};\n`
 
                 node.nodeValue = ""
 
@@ -267,6 +258,18 @@ class Compiler {
 
         }
 
+        if (tag.indexOf('-') > 0) {
+            if (pathId === 'node') {
+                this.component = customDirectives[tag.toLowerCase()]
+            } else {
+                const vdomId = makeid.possible.charAt(makeid.counter++)
+
+                this.directiveSetupCode += `let __${vdomId} = utils["${tag.toLowerCase()}"](scope);\n${pathId}.parentNode.replaceChild(__${vdomId}, ${pathId});\n`
+                this.directiveUpdateCode += `  __${vdomId}.update(scope);\n`
+            }
+            return 1
+        }
+
         return 0
     }
 
@@ -289,12 +292,14 @@ class Compiler {
     // }
 
     createFn() {
+        if (this.component) return this.component
+
         let argsStr = ''
         for(let arg of Object.keys(this.scopeVars)) argsStr += arg + ","   
-        return Function("node", "scope", "utils",
-            this.varCode + '\n' + this.refsCode + '\n' + this.directiveSetupCode +
-            `let current = {};\nnode.update = scope => {\n${this.vdomCode.length > 0 ? `const {${argsStr}} = scope;\n\nconst vdom = {};\n${this.vdomCode}\n${this.compareCode}\ncurrent = vdom;\n` : ''}${this.directiveUpdateCode}
-            }`)
+        return Function("scope", "node", "utils", "rehydrate",
+            'if (rehydrate !== true) node = node.cloneNode(true);\n' + this.varCode + '\n' + this.refsCode + '\n' + this.directiveSetupCode + '\n' +
+            `let current = {};\nnode.update = scope => {\n${this.vdomCode.length > 0 ? `    const {${argsStr}} = scope;\n\n    const vdom = {};\n${this.vdomCode}\n${this.compareCode}\n    current = vdom;\n` : ''}${this.directiveUpdateCode}}\n` +
+            'return node;')
     }
     // updateFn() {
     //     let argsStr = ''
@@ -309,13 +314,12 @@ class Template {
         this.create = createFn
     }
     createInstance(scope) {
-        const node = this.dom.cloneNode(true)
-        this.create(node, scope, customDirectives)
+        const node = this.create(scope, this.dom, customDirectives)
         node.update(scope)
         return node
     }
     rehydrate(scope) {
-        this.create(this.dom, scope, customDirectives)
+        this.create(scope, this.dom, customDirectives, true)
         this.dom.update(scope)
     }
 }
@@ -324,7 +328,7 @@ export function domc(dom) {
     const c = new Compiler()
     c.compile(dom)
     const createFn = c.createFn()
-    console.debug({createFn})
+    // console.debug({createFn})
     return new Template(dom, createFn)
 }
 
@@ -335,10 +339,11 @@ domc.component = (tag, template, localStateFn) => {
     compilerTemplate.innerHTML = template.trim()
     template = compilerTemplate.content.firstChild
     let cNode = domc(template)
-    return domc.customDirectives[tag] = scope => {
+    let createFn = scope => {
         let node
         if (localStateFn !== undefined) {
             let localScope = Object.assign({}, scope)
+            localScope.nodeRender = () => updateFn(localScope)
             localStateFn(localScope)
             node = cNode.createInstance(localScope)
             let updateFn = node.update
@@ -350,6 +355,12 @@ domc.component = (tag, template, localStateFn) => {
             node = cNode.createInstance(scope)
         }
         return node
+    }
+    domc.customDirectives[tag] = createFn
+    return scope => {
+        let node
+        scope.render = () => node.update(scope)
+        return node = createFn(scope)
     }
 }
 
