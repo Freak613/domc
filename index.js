@@ -109,8 +109,8 @@ class Compiler {
         if (tag.indexOf('-') > 0) {
             const vdomId = makeid.possible.charAt(makeid.counter++)
 
-            this.directiveSetupCode += `node.__${vdomId} = utils["${tag.toLowerCase()}"](scope, ${pathId});\n`
-            this.directiveUpdateCode += `node.__${vdomId}.update(scope);\n`
+            this.directiveSetupCode += `let __${vdomId} = utils["${tag.toLowerCase()}"](scope, ${pathId});\n`
+            this.directiveUpdateCode += `__${vdomId}.update(scope);\n`
 
             return 1
         }
@@ -123,6 +123,17 @@ class Compiler {
                     let aname = attr.name
                     let avalue = attr.value
 
+                    if (aname[0] === 'i' && aname[1] === 's') {
+                        node.removeAttribute(aname)
+
+                        const vdomId = makeid.possible.charAt(makeid.counter++)
+
+                        this.directiveSetupCode += `let __${vdomId} = utils["${avalue}"](scope, ${pathId});\n`
+                        this.directiveUpdateCode += `__${vdomId}.update(scope);\n`
+
+                        return 1
+                    }
+
                     if (aname[0] === 'v' && aname[1] === '-') {
                         node.removeAttribute(aname)
 
@@ -130,8 +141,8 @@ class Compiler {
 
                         const vdomId = makeid.possible.charAt(makeid.counter++)
 
-                        this.directiveSetupCode += `node.__${vdomId} = utils.${directive}(${pathId}, "${avalue}");\n`
-                        this.directiveUpdateCode += `node.__${vdomId}(scope);\n`
+                        this.directiveSetupCode += `let __${vdomId} = utils.${directive}(${pathId}, "${avalue}");\n`
+                        this.directiveUpdateCode += `__${vdomId}(scope);\n`
 
                         return 1
                     }
@@ -160,10 +171,10 @@ class Compiler {
 
                         if (eventHandlerArgs.length > 0) {
                             const vdomId = makeid.possible.charAt(makeid.counter++)
-                            this.refsCode += `const ${vdomId} = node.__${vdomId} = ${pathId};\n`
-                            this.refsCode += `${vdomId}.__${eventType} = scope.${eventHandler};\n`
+                            this.refsCode += `let __${vdomId} = ${pathId};\n`
+                            this.refsCode += `__${vdomId}.__${eventType} = scope.${eventHandler};\n`
                             this.vdomCode += `vdom.${vdomId} = ${eventHandlerArgs};\n`    
-                            this.compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) node.__${vdomId}.__${eventType}Data = vdom.${vdomId};\n`
+                            this.compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) __${vdomId}.__${eventType}Data = vdom.${vdomId};\n`
                         } else {
                             this.refsCode += `${pathId}.__${eventType} = scope.${eventHandler};\n`
                         }
@@ -186,15 +197,15 @@ class Compiler {
                         if (aname === 'class') {
                             const vdomId = makeid.possible.charAt(makeid.counter++)
 
-                            this.refsCode += `node.__${vdomId} = ${pathId};\n`
+                            this.refsCode += `let __${vdomId} = ${pathId};\n`
                             this.vdomCode += `vdom.${vdomId} = \`${avalue.replace(/{{/g, '${').replace(/}}/g, '}')}\`;\n`
-                            this.compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) node.__${vdomId}.className = vdom.${vdomId};\n`
+                            this.compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) __${vdomId}.className = vdom.${vdomId};\n`
                         } else {
                             const vdomId = makeid.possible.charAt(makeid.counter++)
 
-                            this.refsCode += `node.__${vdomId} = ${pathId};\n`
+                            this.refsCode += `let __${vdomId} = ${pathId};\n`
                             this.vdomCode += `vdom.${vdomId} = \`${avalue.replace(/{{/g, '${').replace(/}}/g, '}')}\`;\n`
-                            this.compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) node.__${vdomId}.setAttribute("${aname}", vdom.${vdomId});\n`
+                            this.compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) __${vdomId}.setAttribute("${aname}", vdom.${vdomId});\n`
                         }
 
                         let dIdx, eIdx, tokens
@@ -228,9 +239,9 @@ class Compiler {
             if (nodeData.indexOf("{{") >= 0) {
                 const vdomId = makeid.possible.charAt(makeid.counter++)
 
-                this.refsCode += `node.__${vdomId} = ${pathId};\n`
+                this.refsCode += `let __${vdomId} = ${pathId};\n`
                 this.vdomCode += `vdom.${vdomId} = \`${nodeData.replace(/{{/g, '${').replace(/}}/g, '}')}\`;\n`
-                this.compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) node.__${vdomId}.nodeValue = vdom.${vdomId};\n`
+                this.compareCode +=`if (current.${vdomId} !== vdom.${vdomId}) __${vdomId}.nodeValue = vdom.${vdomId};\n`
 
                 node.nodeValue = ""
 
@@ -278,31 +289,33 @@ class Compiler {
     // }
 
     createFn() {
-        return Function("node", "scope", "utils", this.varCode + '\n' + this.refsCode + '\n' + this.directiveSetupCode)
-    }
-    updateFn() {
         let argsStr = ''
         for(let arg of Object.keys(this.scopeVars)) argsStr += arg + ","   
-        return Function("scope", `const node = this;\n\n${this.vdomCode.length > 0 ? `const {${argsStr}} = scope;\nconst current = node.__vdom || {};\n\nconst vdom = {};\n${this.vdomCode}\n${this.compareCode}\nnode.__vdom = vdom;\n` : ''}${this.directiveUpdateCode}`)
+        return Function("node", "scope", "utils",
+            this.varCode + '\n' + this.refsCode + '\n' + this.directiveSetupCode +
+            `let current = {};\nnode.update = scope => {\n${this.vdomCode.length > 0 ? `const {${argsStr}} = scope;\n\nconst vdom = {};\n${this.vdomCode}\n${this.compareCode}\ncurrent = vdom;\n` : ''}${this.directiveUpdateCode}
+            }`)
     }
+    // updateFn() {
+    //     let argsStr = ''
+    //     for(let arg of Object.keys(this.scopeVars)) argsStr += arg + ","   
+    //     return Function("scope", `const node = this;\n\n${this.vdomCode.length > 0 ? `const {${argsStr}} = scope;\nconst current = node.__vdom || {};\n\nconst vdom = {};\n${this.vdomCode}\n${this.compareCode}\nnode.__vdom = vdom;\n` : ''}${this.directiveUpdateCode}`)
+    // }
 }
  
 class Template {
-    constructor(dom, createFn, updateFn) {
+    constructor(dom, createFn) {
         this.dom = dom
         this.create = createFn
-        this.update = updateFn
     }
     createInstance(scope) {
         const node = this.dom.cloneNode(true)
         this.create(node, scope, customDirectives)
-        node.update = this.update
         node.update(scope)
         return node
     }
     rehydrate(scope) {
         this.create(this.dom, scope, customDirectives)
-        this.dom.update = this.update
         this.dom.update(scope)
     }
 }
@@ -310,11 +323,9 @@ class Template {
 export function domc(dom) {
     const c = new Compiler()
     c.compile(dom)
-    // console.debug(c.scopeVars)
     const createFn = c.createFn()
-    const updateFn = c.updateFn()
-    console.debug({createFn, updateFn})
-    return new Template(dom, createFn, updateFn)
+    console.debug({createFn})
+    return new Template(dom, createFn)
 }
 
 domc.customDirectives = customDirectives
@@ -324,7 +335,7 @@ domc.component = (tag, template, localStateFn) => {
     compilerTemplate.innerHTML = template.trim()
     template = compilerTemplate.content.firstChild
     let cNode = domc(template)
-    return domc.customDirectives[tag] = (scope, slot) => {
+    return domc.customDirectives[tag] = scope => {
         let node
         if (localStateFn !== undefined) {
             let localScope = Object.assign({}, scope)
@@ -338,7 +349,6 @@ domc.component = (tag, template, localStateFn) => {
         } else {
             node = cNode.createInstance(scope)
         }
-        slot.parentNode.replaceChild(node, slot)
         return node
     }
 }
