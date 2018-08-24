@@ -98,7 +98,7 @@ So, basically components works similar to Vue.js, allowing mapping props and hav
 // Register component with tag 'todo-item'
 domc.component('todo-item', `
 <li>
-    <div>{{ todo.text }} {{ localVar }}</div>
+    <div>{{ item.text }} {{ localVar }}</div>
 </li>
 `, scope => {
     return {
