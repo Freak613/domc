@@ -131,11 +131,11 @@ class Compiler {
                     if (aname[0] === 'i' && aname[1] === 's') {
                         node.removeAttribute(aname)
                         if (pathId === 'node') {
-                            this.component = customDirectives[avalue]
+                            this.component = customDirectives[avalue](node)
                         } else {
                             const vdomId = makeid.possible.charAt(makeid.counter++)
 
-                            this.directiveSetupCode += `let __${vdomId} = utils["${avalue}"](scope, ${pathId});\n${pathId}.parentNode.replaceChild(__${vdomId}, ${pathId});\n`
+                            this.directiveSetupCode += `let __${vdomId} = utils["${avalue}"](${pathId})(scope);\n${pathId}.parentNode.replaceChild(__${vdomId}, ${pathId});\n`
                             this.directiveUpdateCode += `  __${vdomId}.update(scope);\n`
                         }
                         return 1
@@ -273,11 +273,11 @@ class Compiler {
 
         if (tag.indexOf('-') > 0) {
             if (pathId === 'node') {
-                this.component = customDirectives[tag.toLowerCase()]
+                this.component = customDirectives[tag.toLowerCase()](node)
             } else {
                 const vdomId = makeid.possible.charAt(makeid.counter++)
 
-                this.directiveSetupCode += `let __${vdomId} = utils["${tag.toLowerCase()}"](scope, ${pathId});\n${pathId}.parentNode.replaceChild(__${vdomId}, ${pathId});\n`
+                this.directiveSetupCode += `let __${vdomId} = utils["${tag.toLowerCase()}"](${pathId})(scope);\n${pathId}.parentNode.replaceChild(__${vdomId}, ${pathId});\n`
                 this.directiveUpdateCode += `  __${vdomId}.update(scope);\n`
             }
             return 1
@@ -352,11 +352,22 @@ domc.component = function(tag, template, localStateFn) {
     compilerTemplate.innerHTML = template.trim()
     let cNode = domc(compilerTemplate.content.firstChild)
 
-    function createFn(scope, orig) {
-        if (localStateFn === undefined && orig !== undefined && orig.attributes.length === 0 && orig.firstChild === null) return cNode.createInstance(scope)
+    function createFn(orig) {
+        let mode = 1
+
+        let hasntLocalState = localStateFn === undefined
+        let hasntOrig = orig === undefined
+        let hasntAttrs = !hasntOrig ? (orig.attributes === undefined || orig.attributes.length === 0) : true
+        let hasntChildren = !hasntOrig ? (orig.firstChild === null || (orig.childNodes.length === 1 && orig.firstChild.nodeType === 3 && orig.firstChild.nodeValue.trim() === '')) : true
+
+        if (hasntLocalState && hasntAttrs && hasntChildren) mode = 0
+
+        if (mode === 0) return Function("cNode", `
+            return function(scope) { return cNode.createInstance(scope) }
+        `)(cNode)
 
         let varsFn
-        if (orig !== undefined && orig.attributes.length > 0) {
+        if (!hasntAttrs) {
             let varsCode = ''
             for(let attr of orig.attributes) {
                 varsCode += `scope["${attr.name}"] = scope["${attr.value}"];\n`
@@ -364,38 +375,45 @@ domc.component = function(tag, template, localStateFn) {
             varsFn = Function("scope", varsCode)
         }
 
-        let localScope = Object.assign({
-            nodeRender: () => updateFn(localScope)
-        }, scope)
-
-        if (orig !== undefined && orig.firstChild !== null) {
-            localScope.children = Array.from(orig.childNodes)
+        let children
+        if (!hasntChildren) {
+            children = Array.from(orig.childNodes)
         }
 
-        if (varsFn) varsFn(localScope)
+        return scope => {
+            let localScope = Object.assign({
+                nodeRender: () => {
+                    localScope = Object.assign(localScope, localState)
+                    updateFn(localScope)
+                }
+            }, scope)
 
-        let localState = {}
-        if (localStateFn) {
-            localState = localStateFn(localScope)
-            localScope = Object.assign(localScope, localState)
-        }
-
-        let node = cNode.createInstance(localScope)
-
-        let updateFn = node.update
-        node.update = function(scope) {
-            localScope = Object.assign(localScope, scope, localState)
             if (varsFn) varsFn(localScope)
-            updateFn(localScope)
+            if (children) localScope.children = children
+
+            let localState = {}
+            if (localStateFn) {
+                localState = localStateFn(localScope)
+                localScope = Object.assign(localScope, localState)
+            }
+
+            let node = cNode.createInstance(localScope)
+
+            let updateFn = node.update
+            node.update = function(scope) {
+                localScope = Object.assign(localScope, scope, localState)
+                if (varsFn) varsFn(localScope)
+                updateFn(localScope)
+            }
+            return node
         }
-        return node
     }
 
     domc.customDirectives[tag] = createFn
     return function(scope) {
         let node
         scope.render = () => node.update(scope)
-        return node = createFn(scope)
+        return node = createFn()(scope)
     }
 }
 

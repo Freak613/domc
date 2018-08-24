@@ -1,6 +1,6 @@
 {
   "name": "domc",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "description": "DOM compiler",
   "main": "index.js",
   "scripts": {
