@@ -107,6 +107,18 @@ class Compiler {
     codegen(node, pathId) {
         let nodeType = node.nodeType,
             tag = node.nodeName
+
+        if (nodeType === 8) {
+            const nodeData = node.nodeValue.trim()
+            if (nodeData[0] === '#') {
+                if (nodeData[1] === '#') {
+                    this.directiveSetupCode += `while(scope.${nodeData.slice(2)}.length > 0) ${pathId}.parentNode.insertBefore(scope.${nodeData.slice(2)}[0], ${pathId});\n${pathId}.parentNode.removeChild(${pathId});\n`
+                } else {
+                    this.directiveSetupCode += `${pathId}.parentNode.replaceChild(scope.${nodeData.slice(1)}, ${pathId});\n`    
+                }
+            }
+            return 0
+        }
         
         if (nodeType !== 3) {
 
@@ -228,6 +240,7 @@ class Compiler {
 
             // codegenText
             let nodeData = node.nodeValue.trim()
+
             if (nodeData.indexOf("{{") >= 0) {
                 const vdomId = makeid.possible.charAt(makeid.counter++)
 
@@ -340,10 +353,10 @@ domc.component = function(tag, template, localStateFn) {
     let cNode = domc(compilerTemplate.content.firstChild)
 
     function createFn(scope, orig) {
-        if ((!orig || orig.attributes.length === 0) && !localStateFn) return cNode.createInstance(scope)
+        if (orig === undefined || orig.attributes.length === 0 || orig.firstChild === null || localStateFn === undefined) return cNode.createInstance(scope)
 
         let varsFn
-        if (orig.attributes.length > 0) {
+        if (orig !== undefined && orig.attributes.length > 0) {
             let varsCode = ''
             for(let attr of orig.attributes) {
                 varsCode += `scope["${attr.name}"] = scope["${attr.value}"];\n`
@@ -354,6 +367,10 @@ domc.component = function(tag, template, localStateFn) {
         let localScope = Object.assign({
             nodeRender: () => updateFn(localScope)
         }, scope)
+
+        if (orig !== undefined && orig.firstChild !== null) {
+            localScope.children = orig.childNodes
+        }
 
         if (varsFn) varsFn(localScope)
 
