@@ -9,8 +9,8 @@ import domc from 'domc'
 
 // Given following node
 // <div id="template">
-//     <div>${name}</div>
-//     <div>${surname}</div>
+//     <div>{{ name }}</div>
+//     <div>{{ surname }}</div>
 // </div>
 // compile it into template
 const template = domc(document.querySelector('#template'))
@@ -33,9 +33,9 @@ The code: https://github.com/Freak613/js-framework-benchmark/tree/master/framewo
 ## Supported dynamic values syntax
 
 Only following formats are supported currently:
-- Just values: `${item}`
-- Nested calls: `${item.id}`
-- Function calls: `${rowClass(item.id)}`
+- Just values: `{{ item }}`
+- Nested calls: `{{ item.id }}`
+- Function calls: `{{ rowClass(item.id) }}`
 
 ## Synthetic Events
 
@@ -43,11 +43,93 @@ To achieve desired performance, to not spread page with large amount of listener
 and to not consume a lot of memory, simple implementation of synthetic events has been added.
 It's inspired by Inferno's [linkEvent](https://github.com/infernojs/inferno/blob/master/README.md#linkevent-package-inferno) method.
 It links handler function and fn argument to node, and use them during converting from native event.
-Therefore, if you provide `onclick=${select(item)}`,
+Therefore, if you provide `onclick="select(item)"`,
 it will be parsed into `select` call and `item` as function argument.
 
 Currently it has limitation: only one callback argument supported.
 Also, it doesn't do bubbling after first handler has been met.
+
+## Components
+
+It's possible to create components in JS code.
+
+`scope` is key concept of domc. If you coming from React background, it's idea of `props` and Context API merged into one entity. All templates work in some scope and scope is automatically passed down the DOM tree. All components and directives can extend scope, deeper you go and more extended scope becomes, having all scope vars starting from root component. It eliminates need to manually passing props if source and target have some intermediate components between them.
+
+Components are defined using tag name, it follows Custom Elements naming convention i.e. tag should have at least one dash symbol in the name to be considered as a component.
+All components should be registered in domc before they've been used.
+
+There are two ways of calling components in templates:
+- Using tag directly `<my-component/>`
+- Or using `is` attribute: `<tr is="my component">`. It's used to overcome some DOM limitations, when you can't put custom component in DOM tree, for example `tbody` could have only `tr` children elements.
+
+Components could be either stateless or stateful. If parent scope have enough data for component, it doesn't require own scope to be defined.
+
+```javascript
+domc.component('todo-item', `
+<li>
+    <div>{{ todo.text }}</div>
+</li>
+`)
+domc.component('app-body', `
+<div id="app-4">
+  <ol>
+    <todo-item v-for="todo of todos"/>
+  </ol>
+</div>`)
+```
+
+To make stateful component or to redefine some props from parent scope, domc.component function accepts third argument that is function that accepts parent scope and should return component's scope with necessary data. It doesn't require to be full scope, because returned value will be automatically merged with parent's scope.
+
+Components could have props defined in template directly. They will be mapped from parent's scope automatically.
+Currently no JS values allowed in mapped props.
+
+```javascript
+domc.component('app-body', `
+<div id="app-4">
+  <ol>
+    <todo-item v-for="todo of todos" some-custom-prop1="parentVar1" some-custom-prop2="parentVar2"/>
+  </ol>
+</div>`)
+```
+
+So, basically components works similar to Vue.js, allowing mapping props and have stateless/stateful components.
+
+```javascript
+// Register component with tag 'todo-item'
+domc.component('todo-item', `
+<li>
+    <div>{{ todo.text }} {{ localVar }}</div>
+</li>
+`, scope => {
+    return {
+        localVar = 'me'
+    }
+})
+
+// domc.component is able to return function to render component as starting point of application
+const c = domc.component('app-body', `
+<div id="app-4">
+  <ol>
+    <todo-item v-for="todo of todos" item="todo"/>
+  </ol>
+</div>`)
+
+const scope = {
+    todos: [
+        {text: 'me'},
+        {text: 'you'}
+    ]
+}
+
+// Create app Node
+const app = c(scope)
+document.body.appendChild(app)
+
+// Make some changes and update
+scope.todos[0].text = 'you'
+scope.todos[1].text = 'me'
+app.update(scope)
+```
 
 ## Custom Directives
 
@@ -87,23 +169,23 @@ Instead of building DOM by .createElement API calls with a lot of memory garbage
 
 ```javascript
 // Given following node
-// <tr class="${rowClass(item.id, selected)}">
-//   <td class="col-md-1">${item.id}</td>
+// <tr class="{{ item.id === selected ? 'danger' : '' }}">
+//   <td class="col-md-1">{{ item.id }}</td>
 //   <td class="col-md-4">
-//       <a onclick="${select(item)}">${item.label}</a>
+//       <a onclick="select(item)">{{ item.label }}</a>
 //   </td>
-//   <td class="col-md-1"><a onclick="${del(item)}"><span class="glyphicon glyphicon-remove" aria-hidden="true"></span></a></td>
+//   <td class="col-md-1"><a onclick="del(item)"><span class="glyphicon glyphicon-remove" aria-hidden="true"></span></a></td>
 //   <td class="col-md-6"></td>
 // </tr>
 
-domc(node, scope)
+domc(node)
 
 // This will produce function to clone and walk the node and get references to dynamic parts
-// It has two arguments, template `dom` node and `scope` that used for synthethic event handlers binding
-(function anonymous(dom,scope
-) {
-let node = dom.cloneNode(true);
+// Also, codegen will produce update function, that can later be used to 'rerender' instance
 
+(function anonymous(scope,node,utils,rehydrate
+) {
+if (rehydrate !== true) node = node.cloneNode(true);
 let _f = node.firstChild;
 let _f_f = _f.firstChild;
 let _f_n = _f.nextSibling;
@@ -111,36 +193,32 @@ let _f_n_f = _f_n.firstChild;
 let _f_n_f_f = _f_n_f.firstChild;
 let _f_n_n = _f_n.nextSibling;
 let _f_n_n_f = _f_n_n.firstChild;
+let _f_n_n_f_f = _f_n_n_f.firstChild;
+let _f_n_n_n = _f_n_n.nextSibling;
 
-node.__a = node;
-node.__b = _f_f;
-const c = node.__c = _f_n_f;
-c.__click = scope.select;
-node.__d = _f_n_f_f;
-const e = node.__e = _f_n_n_f;
-e.__click = scope.del;
+_f_n_f.__click = scope.select;
+_f_n_n_f.__click = scope.del;
 
+
+let current = {};
+node.update = function(scope) {
+    const {item,selected,} = scope;
+
+    const vdom = {};
+    vdom.a = `${item.id === selected ? 'danger' : ''}`;
+    vdom.b = `${item.id}`;
+    vdom.c = item;
+    vdom.d = `${item.label}`;
+    vdom.e = item;
+
+    if (current.a !== vdom.a) node.className = vdom.a;
+    if (current.b !== vdom.b) _f_f.nodeValue = vdom.b;
+    if (current.c !== vdom.c) _f_n_f.__clickData = vdom.c;
+    if (current.d !== vdom.d) _f_n_f_f.nodeValue = vdom.d;
+    if (current.e !== vdom.e) _f_n_n_f.__clickData = vdom.e;
+
+    current = vdom;
+}
 return node;
-})
-
-// Also, codegen will produce function, that can later be used to 'rerender' instance
-// It has 3 arguments:
-// - destructured scope
-// - root node, that has assigned references to its dynamic nodes
-// - result of previous rerender call. It used to detect actual changes, something like VDOM.
-(function anonymous({rowClass,selected,del,select,item,},node = this,current = node.__vdom || {}
-) {
-const vdom = {};
-vdom.a = rowClass(item.id, selected);
-vdom.b = item.id;
-vdom.c = item;
-vdom.d = item.label;
-vdom.e = item;
-if (current.a !== vdom.a) node.__a.className = vdom.a;
-if (current.b !== vdom.b) node.__b.data = vdom.b;
-if (current.c !== vdom.c) node.__c.__clickData = vdom.c;
-if (current.d !== vdom.d) node.__d.data = vdom.d;
-if (current.e !== vdom.e) node.__e.__clickData = vdom.e;
-node.__vdom = vdom;
 })
 ```
