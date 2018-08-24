@@ -112,7 +112,7 @@ class Compiler {
             const nodeData = node.nodeValue.trim()
             if (nodeData[0] === '#') {
                 if (nodeData[1] === '#') {
-                    this.directiveSetupCode += `while(scope.${nodeData.slice(2)}.length > 0) ${pathId}.parentNode.insertBefore(scope.${nodeData.slice(2)}[0], ${pathId});\n${pathId}.parentNode.removeChild(${pathId});\n`
+                    this.directiveSetupCode += `for(let i = 0; i < scope.${nodeData.slice(2)}.length; i++) ${pathId}.parentNode.insertBefore(scope.${nodeData.slice(2)}[i], ${pathId});\n${pathId}.parentNode.removeChild(${pathId});\n`
                 } else {
                     this.directiveSetupCode += `${pathId}.parentNode.replaceChild(scope.${nodeData.slice(1)}, ${pathId});\n`    
                 }
@@ -353,7 +353,10 @@ domc.component = function(tag, template, localStateFn) {
     let cNode = domc(compilerTemplate.content.firstChild)
 
     function createFn(scope, orig) {
-        if (orig === undefined || orig.attributes.length === 0 || orig.firstChild === null || localStateFn === undefined) return cNode.createInstance(scope)
+        let hasntLocalState = localStateFn === undefined
+        let hasntOrig = orig === undefined
+        let hasntOrigData = !hasntOrig && orig.attributes.length === 0 && orig.firstChild === null
+        if (hasntLocalState && hasntOrig && hasntOrigData) return cNode.createInstance(scope)
 
         let varsFn
         if (orig !== undefined && orig.attributes.length > 0) {
@@ -369,7 +372,7 @@ domc.component = function(tag, template, localStateFn) {
         }, scope)
 
         if (orig !== undefined && orig.firstChild !== null) {
-            localScope.children = orig.childNodes
+            localScope.children = Array.from(orig.childNodes)
         }
 
         if (varsFn) varsFn(localScope)
