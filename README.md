@@ -102,7 +102,7 @@ domc.component('todo-item', `
 </li>
 `, scope => {
     return {
-        localVar = 'me'
+        localVar: 'me'
     }
 })
 
