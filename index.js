@@ -353,10 +353,7 @@ domc.component = function(tag, template, localStateFn) {
     let cNode = domc(compilerTemplate.content.firstChild)
 
     function createFn(scope, orig) {
-        let hasntLocalState = localStateFn === undefined
-        let hasntOrig = orig === undefined
-        let hasntOrigData = !hasntOrig && orig.attributes.length === 0 && orig.firstChild === null
-        if (hasntLocalState && hasntOrig && hasntOrigData) return cNode.createInstance(scope)
+        if (localStateFn === undefined && orig !== undefined && orig.attributes.length === 0 && orig.firstChild === null) return cNode.createInstance(scope)
 
         let varsFn
         if (orig !== undefined && orig.attributes.length > 0) {
