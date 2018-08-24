@@ -1,6 +1,6 @@
 # domc
 
-Compile DOM node, with `${value}` syntax for dynamic values inside, into function for using as a template.
+Compile DOM node, with `{{ value }}` mustache syntax for dynamic values inside, into function for using as a template.
 
 ## The Gist
 
