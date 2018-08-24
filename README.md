@@ -157,6 +157,44 @@ scope => {
 })
 ```
 
+## Slots
+
+It's possible to insert other Nodes into template.
+
+```javascript
+domc.component('app', `
+<div>
+    <!-- #oneNode -->
+
+    <!-- ##manyNodes -->
+</div>
+`,
+scope => {
+    return {
+        oneNode: document.createElement('div'),
+        manyNodes: [document.createElement('div'), document.createElement('div')]
+    }
+})
+```
+
+For Components, scope will contain `children` array to insert in result Node
+
+```javascript
+domc.component('container-component', `
+<div>
+    <!-- ##children -->
+</div>
+`)
+
+domc.component('app', `
+<container-component>
+    <div>1</div>
+    <div>2</div>
+    <div>3</div>
+</container-component>
+`)
+```
+
 ## Custom Directives
 
 Example of directives can be found in implementation of `v-for` and `v-map` algorithms.
