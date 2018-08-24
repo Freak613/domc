@@ -99,8 +99,8 @@ So, basically components works similar to Vue.js, allowing mapping props and hav
 domc.component('todo-item', `
 <li>
     <div>{{ item.text }} {{ localVar }}</div>
-</li>
-`, scope => {
+</li>`,
+scope => {
     return {
         localVar: 'me'
     }
