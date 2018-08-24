@@ -60,7 +60,7 @@ All components should be registered in domc before they've been used.
 
 There are two ways of calling components in templates:
 - Using tag directly `<my-component/>`
-- Or using `is` attribute: `<tr is="my component">`. It's used to overcome some DOM limitations, when you can't put custom component in DOM tree, for example `tbody` could have only `tr` children elements.
+- Or using `is` attribute: `<tr is="my-component">`. It's used to overcome some DOM limitations, when you can't put custom component in DOM tree, for example `tbody` could have only `tr` children elements.
 
 Components could be either stateless or stateful. If parent scope have enough data for component, it doesn't require own scope to be defined.
 
