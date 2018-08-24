@@ -131,6 +131,31 @@ scope.todos[1].text = 'me'
 app.update(scope)
 ```
 
+If we have event handlers, we should manually call `render` function that is automatically coming from scope. It will rerender full app. If we need to trigger update only on DOM tree branch starting component's node, we can call `nodeRender` function from the scope. Both doesn't accepts any arguments, scope will be automatically used in updates.
+```javascript
+domc.component('app-body', `
+<div id="app-4" onclick="update">
+  <h1>{{ myVar }}</h1>
+</div>`, scope => {
+    const {render, nodeRender} = scope
+
+    const localState = {
+        myVar: 'me',
+        update: () => {
+            localState.myVar = 'you'
+            
+            // Rerender full app
+            render()
+
+            // Rerender node
+            nodeRender()
+        }
+    }
+
+    return localState
+})
+```
+
 ## Custom Directives
 
 Example of directives can be found in implementation of `v-for` and `v-map` algorithms.
