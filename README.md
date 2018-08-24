@@ -136,7 +136,8 @@ If we have event handlers, we should manually call `render` function that is aut
 domc.component('app-body', `
 <div id="app-4" onclick="update">
   <h1>{{ myVar }}</h1>
-</div>`, scope => {
+</div>`,
+scope => {
     const {render, nodeRender} = scope
 
     const localState = {
