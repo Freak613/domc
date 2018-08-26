@@ -130,6 +130,7 @@ class Compiler {
 
             // codegenAttributes
             if (node.attributes !== undefined) {
+                let toBeRemoved = []
                 for(let attr of node.attributes) {
                     let aname = attr.name
                     let avalue = attr.value
@@ -191,7 +192,7 @@ class Compiler {
                             this.refsCode += `${pathId}.__${eventType} = scope.${eventHandler};\n`
                         }
 
-                        node.removeAttribute(aname)
+                        toBeRemoved.push(aname)
 
                         for(let i = 0, code, token; i < eventHandlerArgs.length; i++) {
                             token = eventHandlerArgs[i]
@@ -204,13 +205,19 @@ class Compiler {
                                 }
                             }
                         }
-
                     } else if (avalue.indexOf("{{") >= 0) {
                         if (aname === 'class') {
                             const vdomId = makeid()
 
                             this.vdomCode += `    vdom.${vdomId} = \`${avalue.replace(/{{/g, '${').replace(/}}/g, '}')}\`;\n`
                             this.compareCode +=`    if (current.${vdomId} !== vdom.${vdomId}) ${pathId}.className = vdom.${vdomId};\n`
+
+                        } else if (aname === 'style') {
+                            let token = avalue.replace('{{', '').replace('}}', '').trim()
+
+                            this.directiveSetupCode += 'let __style = node.style;\n'
+                            this.directiveUpdateCode += `    let scopeStyle = scope.${token};\n    for(let key in scopeStyle) if(scopeStyle[key] !== __style[key]) __style[key] = scopeStyle[key];\n`
+
                         } else {
                             const vdomId = makeid()
 
@@ -236,9 +243,11 @@ class Compiler {
                             avalue = avalue.slice(eIdx + 1)
                         }
 
-                        node.removeAttribute(aname)
+                        toBeRemoved.push(aname)
                     }   
                 }
+
+                for(let aname of toBeRemoved) node.removeAttribute(aname)
             }
             // End codegenAttributes
 
@@ -299,7 +308,7 @@ class Compiler {
         for(let arg of Object.keys(this.scopeVars)) argsStr += arg + ","   
         return Function("scope", "node", "utils", "rehydrate",
             'if (rehydrate !== true) node = node.cloneNode(true);\n' + this.varCode + '\n' + this.refsCode + '\n' + this.directiveSetupCode + '\n' +
-            `let current = {};\nnode.update = function(scope) {\n${this.vdomCode.length > 0 ? `    const {${argsStr}} = scope;\n\n    const vdom = {};\n${this.vdomCode}\n${this.compareCode}\n    current = vdom;\n` : ''}${this.directiveUpdateCode}}\n` +
+            `let current = {};\nnode.update = function(scope) {\n${this.vdomCode.length > 0 ? `    const {${argsStr}} = scope;\n\n    const vdom = {};\n${this.vdomCode}\n${this.compareCode}\n    current = vdom;\n` : ''}\n${this.directiveUpdateCode}}\n` +
             'return node;')
     }
 }
@@ -392,7 +401,7 @@ domc.component = function(tag, templateObj) {
             updateFn = node.update
 
             node.update = function(scope) {
-                // Triple merge to make local component vars not be overwrighten
+                // Triple merge to make local component vars not be overwritten
                 Object.assign(localScope, scope, localScope)
                 if (varsFn) Object.assign(localScope, varsFn(localScope), localScope)
                 if (onUpdate) Object.assign(localScope, onUpdate(localScope))
