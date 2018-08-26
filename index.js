@@ -417,4 +417,15 @@ domc.component = function(tag, template, localStateFn) {
     }
 }
 
+domc.app = function(template) {
+    compilerTemplate.innerHTML = template.trim()
+    let cNode = domc(compilerTemplate.content.firstChild)
+
+    return function(scope) {
+        let node
+        scope.render = () => node.update(scope)
+        return node = cNode.createInstance(scope)
+    }
+}
+
 export default domc
