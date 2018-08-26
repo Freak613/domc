@@ -405,7 +405,7 @@ domc.component = function(tag, templateObj) {
 
             if (onCreate) Object.assign(localScope, onCreate(localScope))
 
-            node = cNode.createInstance(localScope)
+            localScope.node = node = cNode.createInstance(localScope)
             updateFn = node.update
 
             node.update = function(scope) {
