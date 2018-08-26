@@ -348,17 +348,25 @@ export function domc(dom) {
 domc.customDirectives = customDirectives
 
 const compilerTemplate = document.createElement('template')
-domc.component = function(tag, template, localStateFn) {
+domc.component = function(tag, templateObj) {
+    let template, onCreate, onUpdate
+    if (typeof templateObj === 'string') {
+        template = templateObj
+    } else {
+        template = templateObj.template
+        onCreate = templateObj.create
+        onUpdate = templateObj.update
+    }
+
     compilerTemplate.innerHTML = template.trim()
     let cNode = domc(compilerTemplate.content.firstChild)
 
     function createFn(orig) {
         let mode = 1
 
-        let hasntLocalState = localStateFn === undefined
-        let hasntOrig = orig === undefined
-        let hasntAttrs = !hasntOrig ? (orig.attributes === undefined || orig.attributes.length === 0) : true
-        let hasntChildren = !hasntOrig ? (orig.firstChild === null || (orig.childNodes.length === 1 && orig.firstChild.nodeType === 3 && orig.firstChild.nodeValue.trim() === '')) : true
+        let hasntLocalState = onCreate === undefined && onUpdate === undefined
+        let hasntAttrs = orig.attributes === undefined || orig.attributes.length === 0
+        let hasntChildren = orig.firstChild === null || (orig.childNodes.length === 1 && orig.firstChild.nodeType === 3 && orig.firstChild.nodeValue.trim() === '')
 
         if (hasntLocalState && hasntAttrs && hasntChildren) mode = 0
 
@@ -368,11 +376,11 @@ domc.component = function(tag, template, localStateFn) {
 
         let varsFn
         if (!hasntAttrs) {
-            let varsCode = ''
+            let varsCode = 'const vs = {};\n'
             for(let attr of orig.attributes) {
-                varsCode += `scope["${attr.name}"] = scope["${attr.value}"];\n`
+                varsCode += `vs["${attr.name}"] = scope["${attr.value}"];\n`
             }
-            varsFn = Function("scope", varsCode)
+            varsFn = Function("scope", varsCode + 'return vs;\n')
         }
 
         let children
@@ -381,40 +389,38 @@ domc.component = function(tag, template, localStateFn) {
         }
 
         return scope => {
+            let node,
+                updateFn
+
             let localScope = Object.assign({
                 nodeRender: () => {
-                    localScope = Object.assign(localScope, localState)
+                    if (onUpdate) Object.assign(localScope, onUpdate(localScope))
                     updateFn(localScope)
                 }
             }, scope)
 
-            if (varsFn) varsFn(localScope)
-            if (children) localScope.children = children
+            if (varsFn) Object.assign(localScope, varsFn(localScope))
+            
+            localScope.children = children
 
-            let localState = {}
-            if (localStateFn) {
-                localState = localStateFn(localScope)
-                localScope = Object.assign(localScope, localState)
-            }
+            if (onCreate) Object.assign(localScope, onCreate(localScope))
 
-            let node = cNode.createInstance(localScope)
+            node = cNode.createInstance(localScope)
+            updateFn = node.update
 
-            let updateFn = node.update
             node.update = function(scope) {
-                localScope = Object.assign(localScope, scope, localState)
-                if (varsFn) varsFn(localScope)
+                // Triple merge to make local component vars not be overwrighten
+                Object.assign(localScope, scope, localScope)
+                if (varsFn) Object.assign(localScope, varsFn(localScope), localScope)
+                if (onUpdate) Object.assign(localScope, onUpdate(localScope))
                 updateFn(localScope)
             }
+
             return node
         }
     }
 
     domc.customDirectives[tag] = createFn
-    return function(scope) {
-        let node
-        scope.render = () => node.update(scope)
-        return node = createFn()(scope)
-    }
 }
 
 domc.app = function(template) {
