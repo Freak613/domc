@@ -34,9 +34,15 @@ function setupSyntheticEvent(name) {
 // - str[idx] and str.slice are faster than regex matching
 //
 
-function makeid() {}
+function makeid() {
+    const {possible, n} = makeid
+    let alphaHex = n.toString(26).split(''), c, r = ''
+    while(c = alphaHex.shift()) r += possible[parseInt(c, 26)]
+    makeid.n++
+    return r
+}
 makeid.possible = "abcdefghijklmnopqrstuvwxyz"
-makeid.counter = 0
+makeid.n = 0
 
 
 export const customDirectives = {}
@@ -133,7 +139,7 @@ class Compiler {
                         if (pathId === 'node') {
                             this.component = customDirectives[avalue](node)
                         } else {
-                            const vdomId = makeid.possible.charAt(makeid.counter++)
+                            const vdomId = makeid()
 
                             this.directiveSetupCode += `let __${vdomId} = utils["${avalue}"](${pathId})(scope);\n${pathId}.parentNode.replaceChild(__${vdomId}, ${pathId});\n`
                             this.directiveUpdateCode += `  __${vdomId}.update(scope);\n`
@@ -146,7 +152,7 @@ class Compiler {
 
                         const directive = aname.slice(2)
 
-                        const vdomId = makeid.possible.charAt(makeid.counter++)
+                        const vdomId = makeid()
 
                         this.directiveSetupCode += `let __${vdomId} = utils.${directive}(${pathId}, "${avalue}");\n`
                         this.directiveUpdateCode += `    __${vdomId}(scope);\n`
@@ -177,7 +183,7 @@ class Compiler {
                         }
 
                         if (eventHandlerArgs.length > 0) {
-                            const vdomId = makeid.possible.charAt(makeid.counter++)
+                            const vdomId = makeid()
                             this.refsCode += `${pathId}.__${eventType} = scope.${eventHandler};\n`
                             this.vdomCode += `    vdom.${vdomId} = ${eventHandlerArgs};\n`    
                             this.compareCode +=`    if (current.${vdomId} !== vdom.${vdomId}) ${pathId}.__${eventType}Data = vdom.${vdomId};\n`
@@ -201,12 +207,12 @@ class Compiler {
 
                     } else if (avalue.indexOf("{{") >= 0) {
                         if (aname === 'class') {
-                            const vdomId = makeid.possible.charAt(makeid.counter++)
+                            const vdomId = makeid()
 
                             this.vdomCode += `    vdom.${vdomId} = \`${avalue.replace(/{{/g, '${').replace(/}}/g, '}')}\`;\n`
                             this.compareCode +=`    if (current.${vdomId} !== vdom.${vdomId}) ${pathId}.className = vdom.${vdomId};\n`
                         } else {
-                            const vdomId = makeid.possible.charAt(makeid.counter++)
+                            const vdomId = makeid()
 
                             this.vdomCode += `    vdom.${vdomId} = \`${avalue.replace(/{{/g, '${').replace(/}}/g, '}')}\`;\n`
                             this.compareCode +=`    if (current.${vdomId} !== vdom.${vdomId}) ${pathId}.setAttribute("${aname}", vdom.${vdomId});\n`
@@ -242,7 +248,7 @@ class Compiler {
             let nodeData = node.nodeValue.trim()
 
             if (nodeData.indexOf("{{") >= 0) {
-                const vdomId = makeid.possible.charAt(makeid.counter++)
+                const vdomId = makeid()
 
                 this.vdomCode += `    vdom.${vdomId} = \`${nodeData.replace(/{{/g, '${').replace(/}}/g, '}')}\`;\n`
                 this.compareCode +=`    if (current.${vdomId} !== vdom.${vdomId}) ${pathId}.nodeValue = vdom.${vdomId};\n`
@@ -275,7 +281,7 @@ class Compiler {
             if (pathId === 'node') {
                 this.component = customDirectives[tag.toLowerCase()](node)
             } else {
-                const vdomId = makeid.possible.charAt(makeid.counter++)
+                const vdomId = makeid()
 
                 this.directiveSetupCode += `let __${vdomId} = utils["${tag.toLowerCase()}"](${pathId})(scope);\n${pathId}.parentNode.replaceChild(__${vdomId}, ${pathId});\n`
                 this.directiveUpdateCode += `  __${vdomId}.update(scope);\n`
