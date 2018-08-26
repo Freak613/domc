@@ -78,7 +78,7 @@ domc.component('app-body', `
 </div>`)
 ```
 
-To make stateful component or to redefine some props from parent scope, domc.component function accepts third argument that is function that accepts parent scope and should return component's scope with necessary data. It doesn't require to be full scope, because returned value will be automatically merged with parent's scope.
+To make stateful component or to redefine some props from parent scope, domc.component function accepts templateObject argument.
 
 Components could have props defined in template directly. They will be mapped from parent's scope automatically.
 Currently no JS values allowed in mapped props.
@@ -92,22 +92,34 @@ domc.component('app-body', `
 </div>`)
 ```
 
-So, basically components works similar to Vue.js, allowing mapping props and have stateless/stateful components.
+So, basic example looks like this:
 
 ```javascript
 // Register component with tag 'todo-item'
-domc.component('todo-item', `
-<li>
-    <div>{{ item.text }} {{ localVar }}</div>
-</li>`,
-scope => {
-    return {
-        localVar: 'me'
-    }
+domc.component('todo-item', {
+    // Components have two lifecycle events:
+    // `create` used for creating initial values and event handlers
+    create: scope => {
+        return {
+            localVar: 'me'
+        }
+    },
+    // `update` will be called on every node.update call, either from nodeRender or from render
+    // We can use it to react on scope changes
+    update: scope => {
+        return {
+            someCond: scope.localVar === 'me' ? 'yes' : 'no'
+        }
+    },
+    template: `
+        <li>
+            <div>{{ item.text }} {{ localVar }} {{ someCond }}</div>
+        </li>
+    `
 })
 
-// domc.component is able to return function to render component as starting point of application
-const c = domc.component('app-body', `
+// domc.app returns function to render component as starting point of application
+const c = domc.app(`
 <div id="app-4">
   <ol>
     <todo-item v-for="todo of todos" item="todo"/>
@@ -132,28 +144,32 @@ app.update(scope)
 ```
 
 If we have event handlers, we should manually call `render` function that is automatically coming from scope. It will rerender full app. If we need to trigger update only on DOM tree branch starting component's node, we can call `nodeRender` function from the scope. Both doesn't accepts any arguments, scope will be automatically used in updates.
+
 ```javascript
-domc.component('app-body', `
-<div id="app-4" onclick="update">
-  <h1>{{ myVar }}</h1>
-</div>`,
-scope => {
-    const {render, nodeRender} = scope
+domc.component('app-body', {
+    create: scope => {
+        const {render, nodeRender} = scope
 
-    const localState = {
-        myVar: 'me',
-        update: () => {
-            localState.myVar = 'you'
-            
-            // Rerender full app
-            render()
+        const init = {
+            myVar: 'me',
+            update: () => {
+                // Init object should not be modified. We use `scope` to work with component state
+                scope.myVar = 'you'
+                
+                // Rerender full app
+                render()
 
-            // Rerender node
-            nodeRender()
+                // OR rerender node
+                nodeRender()
+            }
         }
-    }
 
-    return localState
+        return init
+    },
+    template: `
+        <div id="app-4" onclick="update">
+          <h1>{{ myVar }}</h1>
+        </div>`
 })
 ```
 
@@ -193,6 +209,62 @@ domc.component('app', `
     <div>3</div>
 </container-component>
 `)
+```
+
+## Styles
+
+Inline styles are supported in following ways:
+- As a simple non-dynamic argument, `<div style="display: flex;"></div>`
+- As dynamic object argument: `<div style="{{ style }}"></div>`. It will be diffed on update and only changed variable will be applied to element style.
+
+As a way to organizing styles, domc have small `styles` CSS-in-JS utility. It will generate necessary classNames and inline styles, along with update function. Style rules will be inserted into generated `style` tag in the document head.
+
+```javascript
+import styles from 'domc/styles'
+
+// Static styles
+const s = styles({
+    base: {
+        display: 'flex',
+        // pseudo-classes and pseudo-selectors are supported
+        '::before': {
+            content: '>'
+        }
+    }
+})
+// s will have s.base === 'base-a'
+// styles will generate uniq alphabet tokens and append it to the end of className
+
+// Dynamic styles
+// Used to generate styles per component instance, from scope props
+const s = styles(({color}) => ({
+    base: {
+        display: 'flex',
+        color
+    }
+}))
+const instanceStyles = s({color: 'black'})
+// instanceStyles.base === 'base-b'
+
+// With inline styles
+// Used for highly dynamic values, when creating new style every time meaningless
+const s = styles(({color}) => ({
+    base: {
+        display: 'flex',
+        color,
+        // inline should be function
+        inline: ({posX, posY}) => ({
+            top: posY + 'px',
+            left: posX + 'px'
+        })
+    }
+}))
+const instanceStyles = s({color: 'black', posX: 0, poxY: 0})
+// instanceStyles.base === 'base-c'
+// instanceStyles.inline.base === {top: '0px', left: '0px'}
+...
+instanceStyles({posX: 100, posY: 200})
+// instanceStyles.inline.base === {top: '100px', left: '200px'}
 ```
 
 ## Custom Directives
