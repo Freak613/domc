@@ -286,24 +286,6 @@ class Compiler {
         return 0
     }
 
-    // codeopt() {
-    //     let varCode = this.varCode,
-    //         refsCode = this.refsCode
-
-    //     if (varCode.length === 0) return
-
-    //     const vars = varCode.match(/_f\w*/g)
-    //     let i = vars.length, _var
-    //     while(--i) {
-    //         _var = vars[i]
-    //         if (varCode.indexOf(` ${_var}.`) === -1 && refsCode.indexOf(` ${_var};`) === -1) {
-    //             varCode = varCode.replace(new RegExp(`let ${_var} = .*?;\n`), '')
-    //         }
-    //     }
-
-    //     this.varCode = varCode
-    // }
-
     createFn() {
         if (this.component) return this.component
 
@@ -314,11 +296,6 @@ class Compiler {
             `let current = {};\nnode.update = function(scope) {\n${this.vdomCode.length > 0 ? `    const {${argsStr}} = scope;\n\n    const vdom = {};\n${this.vdomCode}\n${this.compareCode}\n    current = vdom;\n` : ''}${this.directiveUpdateCode}}\n` +
             'return node;')
     }
-    // updateFn() {
-    //     let argsStr = ''
-    //     for(let arg of Object.keys(this.scopeVars)) argsStr += arg + ","   
-    //     return Function("scope", `const node = this;\n\n${this.vdomCode.length > 0 ? `const {${argsStr}} = scope;\nconst current = node.__vdom || {};\n\nconst vdom = {};\n${this.vdomCode}\n${this.compareCode}\nnode.__vdom = vdom;\n` : ''}${this.directiveUpdateCode}`)
-    // }
 }
  
 class Template {
