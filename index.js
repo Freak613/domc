@@ -1,18 +1,25 @@
-
 // Synthetic Events
 
 const nativeToSyntheticEvent = (event, name) => {
     const eventKey = `__${name}`
     let dom = event.target
+    let fnargs = `__${name}Data`    
     while(dom !== null) {
         const eventHandler = dom[eventKey]
         if (eventHandler) {
-            eventHandler(dom[`__${name}Data`])
+           // if no function args then call handler with the event object itself
+           if (dom[fnargs]){
+              eventHandler(dom[fnargs])
+           } 
+           else {
+              eventHandler(event)
+           }
             return
         }
         dom = dom.parentNode
     }
 }
+
 const CONFIGURED_SYNTHETIC_EVENTS = {}
 function setupSyntheticEvent(name) {
     if (CONFIGURED_SYNTHETIC_EVENTS[name]) return
