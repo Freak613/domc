@@ -426,4 +426,43 @@ domc.app = function(template) {
     }
 }
 
+/**
+ * createComponentInstance() 
+ * - allows creation of instances in code 
+ * - useful in larger apps 
+ * - useful in lazy-loading components
+ *
+ * Note:
+ * component tag must have been previously registered with domc.component()
+ *
+ * Usage:
+ * domc.component( tag, templateObj )
+ * ....   
+ * const cmpnode = domc.createComponentInstance( tag )
+ * // alternatively, if you want to update original data at creation time
+ * // const changeddata = {headericon: 'icm-add', heading2: 'Hey2'}
+ * // const cmpnode = domc.createComponentInstance( tag, changeddata )
+ *
+ * document.body.appendChild(cmpnode)
+ * 
+ *
+ * @param  {string} tag   component tag eg. 'entity-header'
+ * @param  {object} scope (optional) new data to update default scope data 
+ * @return {Element}      returns dom node with attached update() func, etc
+ */
+domc.createComponentInstance = function(tag, scope){
+  const tagentry = customDirectives[tag]
+
+  if (!tagentry) {
+     throw `component with tag '${tag}' has not been registered using domc.component()` 
+  }
+  else {
+     const dummy = document.createElement('template')
+     const createfunc = tagentry( dummy )
+     const cmpnode = createfunc()
+     if (scope) cmpnode.update(scope)
+     return cmpnode
+  }
+}
+
 export default domc
