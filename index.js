@@ -428,27 +428,8 @@ domc.app = function(template) {
 
 /**
  * createComponentInstance() 
- * - allows creation of instances in code 
- * - useful in larger apps 
- * - useful in lazy-loading components
- *
- * Note:
- * component tag must have been previously registered with domc.component()
- *
- * Usage:
- * domc.component( tag, templateObj )
- * ....   
- * const cmpnode = domc.createComponentInstance( tag )
- * // alternatively, if you want to update original data at creation time
- * // const changeddata = {headericon: 'icm-add', heading2: 'Hey2'}
- * // const cmpnode = domc.createComponentInstance( tag, changeddata )
- *
- * document.body.appendChild(cmpnode)
- * 
- *
- * @param  {string} tag   component tag eg. 'entity-header'
- * @param  {object} scope (optional) new data to update default scope data 
- * @return {Element}      returns dom node with attached update() func, etc
+ * allows creation of instances in code (useful in larger apps + lazy-loading components)
+ * example use: const cmpnode = domc.createComponentInstance(tag); document.body.appendChild(cmpnode)
  */
 domc.createComponentInstance = function(tag, scope){
   const tagentry = customDirectives[tag]
