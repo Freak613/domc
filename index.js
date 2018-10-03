@@ -433,4 +433,24 @@ domc.app = function(template) {
     }
 }
 
+/**
+ * createComponentInstance() 
+ * allows creation of instances in code (useful in larger apps + lazy-loading components)
+ * example use: const cmpnode = domc.createComponentInstance(tag); document.body.appendChild(cmpnode)
+ */
+domc.createComponentInstance = function(tag, scope){
+  const tagentry = customDirectives[tag]
+
+  if (!tagentry) {
+     throw `component with tag '${tag}' has not been registered using domc.component()` 
+  }
+  else {
+     const dummy = document.createElement('template')
+     const createfunc = tagentry( dummy )
+     const cmpnode = createfunc()
+     if (scope) cmpnode.update(scope)
+     return cmpnode
+  }
+}
+
 export default domc
