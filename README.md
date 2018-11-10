@@ -29,6 +29,9 @@ https://github.com/Freak613/js-framework-benchmark/tree/master/frameworks/keyed/
 
 ![Performance](performance.png?raw=true "Performance")
 
+## Size
+2.33Kb `index.js` + 1.08Kb `vFor.js`
+
 
 ## Supported dynamic values syntax
 
