@@ -2,6 +2,9 @@
 
 Compile DOM node, with `{{ value }}` mustache syntax for dynamic values inside, into function for using as a template.
 
+## To be done/Not implemented
+- Conditional rendering with v-if
+
 ## The Gist
 
 ```javascript
