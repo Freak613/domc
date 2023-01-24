@@ -38,7 +38,7 @@ https://github.com/Freak613/js-framework-benchmark/tree/master/frameworks/keyed/
 
 ## Supported dynamic values syntax
 
-Only following formats are supported currently:
+The following formats are currently supported:
 
 - just values: `{{ item }}`
 - nested values: `{{ item.id }}`
