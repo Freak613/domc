@@ -204,7 +204,7 @@ class Compiler {
                         for(let i = 0, code, token; i < eventHandlerArgs.length; i++) {
                             token = eventHandlerArgs[i]
                             code = token.charCodeAt(0)
-                            if (code >= 97 && code <= 122) {
+                            if ((code >= 65 && code <= 90) || (code >= 97 && code <= 122)) {
                                 if (token.indexOf('.') >= 0) {
                                     this.scopeVars[token.slice(0, token.indexOf('.'))] = true    
                                 } else {
@@ -239,7 +239,7 @@ class Compiler {
                             for(let i = 0, code, token; i < tokens.length; i++) {
                                 token = tokens[i]
                                 code = token.charCodeAt(0)
-                                if (code >= 97 && code <= 122) {
+                                if ((code >= 65 && code <= 90) || (code >= 97 && code <= 122)) {
                                     if (token.indexOf('.') >= 0) {
                                         this.scopeVars[token.slice(0, token.indexOf('.'))] = true    
                                     } else {
@@ -278,7 +278,7 @@ class Compiler {
                     for(let i = 0, code, token; i < tokens.length; i++) {
                         token = tokens[i]
                         code = token.charCodeAt(0)
-                        if (code >= 97 && code <= 122) {
+                        if ((code >= 65 && code <= 90) || (code >= 97 && code <= 122)) {
                             if (token.indexOf('.') >= 0) {
                                 this.scopeVars[token.slice(0, token.indexOf('.'))] = true    
                             } else {
