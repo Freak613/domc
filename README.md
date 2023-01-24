@@ -38,10 +38,13 @@ https://github.com/Freak613/js-framework-benchmark/tree/master/frameworks/keyed/
 
 ## Supported dynamic values syntax
 
-Only following formats are supported currently:
-- Just values: `{{ item }}`
-- Nested calls: `{{ item.id }}`
-- Function calls: `{{ rowClass(item.id) }}`
+The following formats are currently supported:
+
+- just values: `{{ item }}`
+- nested values: `{{ item.id }}`
+- function calls: `{{ rowClass(item.id) }}`
+
+All these must be part of a component's scope.
 
 ## Synthetic Events
 
@@ -61,8 +64,7 @@ It's possible to create components in JS code.
 
 `scope` is key concept of domc. If you coming from React background, it's idea of `props` and Context API merged into one entity. All templates work in some scope and scope is automatically passed down the DOM tree. All components and directives can extend scope, deeper you go and more extended scope becomes, having all scope vars starting from root component. It eliminates need to manually passing props if source and target have some intermediate components between them.
 
-> Nota bene: at runtime, `scope` will be automatically extended with the following additional entries: `render`, `nodeRender` and `children` - don not use these keys in your own `scope` data structure
-
+> Nota bene: at runtime, `scope` may be automatically extended with the following additional entries: `render`, `node`, `nodeRender` and `children` - don not use these keys in your own `scope` data structure
 
 Components are defined using tag name, it follows Custom Elements naming convention i.e. tag should have at least one dash symbol in the name to be considered as a component.
 All components should be registered in domc before they've been used.
