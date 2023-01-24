@@ -32,15 +32,11 @@ https://github.com/Freak613/js-framework-benchmark/tree/master/frameworks/keyed/
 ## Size
 2.33Kb `index.js` + 1.08Kb `vFor.js`
 
-## To be done/Not implemented
-- Conditional rendering with v-if
-
-
 ## Supported dynamic values syntax
 
 The following formats are currently supported:
 
-- just values: `{{ item }}`
+- plain values: `{{ item }}`
 - nested values: `{{ item.id }}`
 - function calls: `{{ rowClass(item.id) }}`
 
@@ -64,7 +60,7 @@ It's possible to create components in JS code.
 
 `scope` is key concept of domc. If you coming from React background, it's idea of `props` and Context API merged into one entity. All templates work in some scope and scope is automatically passed down the DOM tree. All components and directives can extend scope, deeper you go and more extended scope becomes, having all scope vars starting from root component. It eliminates need to manually passing props if source and target have some intermediate components between them.
 
-> Nota bene: at runtime, `scope` may be automatically extended with the following additional entries: `render`, `node`, `nodeRender` and `children` - don not use these keys in your own `scope` data structure
+> Nota bene: at runtime, `scope` may be automatically extended with the following additional entries: `render`, `node`, `nodeRender` and `children` - do not use these keys in your own `scope` data structure
 
 Components are defined using tag name, it follows Custom Elements naming convention i.e. tag should have at least one dash symbol in the name to be considered as a component.
 All components should be registered in domc before they've been used.
@@ -277,6 +273,34 @@ const instanceStyles = s({color: 'black', posX: 0, poxY: 0})
 instanceStyles({posX: 100, posY: 200})
 // instanceStyles.inline.base === {top: '100px', left: '200px'}
 ```
+
+## Conditional Rendering ##
+
+Element rendering may be made dependent on a given condition with the help of directive `v-if`. Just add `v-if` as an attribute to the start tag of your element and set that attribute to the desired condition. The following variants are supported:
+
+* `<tag v-if="scopeProp">...</tag>`<br>where `scopeProp` is the name of a (boolean) scope property. The `<tag/>` will only be shown if `scopeProp` is `true`
+* `<tag v-if="(args) => expr">...</tag>`<br>where `args` is an (optionally empty) comma-separated list of scope properties and `expr` an expression which must evaluate to `true` in order for `<tag/>` to be shown. When used in the expression, `this` refers to the local scope
+* `<tag v-if="(args) => { statements }">...</tag>`<br>where `args` is an (optionally empty) comma-separated list of scope properties and `statements` the body of a function which should return `true` in order for `<tag/>` to be rendered. When used in the function body, `this` refers to the local scope
+
+Here are some examples:
+
+```
+<custom-element v-if="visible"/>
+```
+
+will only be rendered if `visible` is part of the scope and set to `true`
+
+```
+<custom-element v-if="() => this.isVisible && this.isUseful"/>
+```
+
+will only be rendered if both `isVisible` and `isUseful` are part of the scope and set to `true`. While the attribute value looks like a (synchronous!) "fat arrow" literal, it will be parsed and compiled into a function that runs in the `this` context of the local scope
+
+```
+<custom-element v-if="(ultimateAnswer) => { return (ultimateAnswer === 42) }"/>
+```
+
+will only be rendered if `ultimateAnswer` is part of the scope and set to `42`. While the attribute value looks like a (synchronous!) "fat arrow" literal, it will be parsed and compiled into a function that runs in the `this` context of the local scope
 
 ## Custom Directives
 
