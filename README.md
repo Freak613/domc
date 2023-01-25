@@ -7,10 +7,12 @@ Compile DOM node, with `{{ value }}` mustache syntax for dynamic values inside, 
 ```javascript
 import domc from 'domc'
 
-// Given following node
-// <div id="template">
+// Given following HTML
+// <div style="display:none">
+//   <div id="template">
 //     <div>{{ name }}</div>
 //     <div>{{ surname }}</div>
+//   </div>
 // </div>
 // compile it into template
 const template = domc(document.querySelector('#template'))
@@ -22,12 +24,6 @@ container.appendChild(node)
 // Update instance with new values
 node.update({name: 'Bob', surname: 'Marley'})
 ```
-
-## Performance demo
-
-https://github.com/Freak613/js-framework-benchmark/tree/master/frameworks/keyed/domc
-
-![Performance](performance.png?raw=true "Performance")
 
 ## Size
 2.33Kb `index.js` + 1.08Kb `vFor.js`
