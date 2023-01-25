@@ -38,6 +38,19 @@ The following formats are currently supported:
 
 All these must be part of a component's scope.
 
+Placeholders may be used
+
+- for the content of an element (`<div>{{ content }}</div>`) or
+- for the value of a non-boolean attribute (`<input type="text" value="{{ value }}">`)
+
+Placeholders for boolean attributes (such as the `readonly` flag of an `input` element) are *not* supported: i.e.,
+
+```
+<input type="text" readonly="{{ readonly }}">
+```
+
+**is wrong**!
+
 ## Synthetic Events
 
 To achieve desired performance, to not spread page with large amount of listeners
