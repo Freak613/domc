@@ -83,16 +83,24 @@ domc.component('app-body', `
 
 To make stateful component or to redefine some props from parent scope, domc.component function accepts templateObject argument.
 
-Components could have props defined in template directly. They will be mapped from parent's scope automatically.
-Currently no JS values allowed in mapped props.
+Components could have props defined as attributes in the template. The following code
 
 ```javascript
 domc.component('app-body', `
 <div id="app-4">
   <ol>
-    <todo-item v-for="todo of todos" some-custom-prop1="parentVar1" some-custom-prop2="parentVar2"/>
+    <todo-item v-for="todo of todos" custom-prop1="value1" custom-prop2="value2"/>
   </ol>
 </div>`)
+```
+
+will decorate the `<todo-item/>`'s scope with the following properties:
+
+```javascript
+{
+  "custom-prop1":"value1",
+  "custom-prop2":"value2"
+}
 ```
 
 So, basic example looks like this:
