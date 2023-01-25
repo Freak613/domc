@@ -94,7 +94,7 @@ domc.component('app-body', `
 </div>`)
 ```
 
-will decorate the `<todo-item/>`'s scope with the following properties:
+will decorate the `<todo-item/>`'s local scope with the following properties:
 
 ```javascript
 {
