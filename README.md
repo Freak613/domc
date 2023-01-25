@@ -43,13 +43,14 @@ Placeholders may be used
 - for the content of an element (`<div>{{ content }}</div>`) or
 - for the value of a non-boolean attribute (`<input type="text" value="{{ value }}">`)
 
-Placeholders for boolean attributes (such as the `readonly` flag of an `input` element) are *not* supported: i.e.,
+Placeholders for boolean attributes (such as the `readonly` flag of an `input` element) are **not supported**: i.e., the following variants
 
 ```
 <input type="text" readonly="{{ readonly }}">
+<input type="text" {{ readonly }}>
 ```
 
-**is wrong**!
+**do not work**!
 
 ## Synthetic Events
 
