@@ -278,6 +278,11 @@ Element rendering may be made dependent on a given condition with the help of di
 * `<tag v-if="(args) => expr">...</tag>`<br>where `args` is an (optionally empty) comma-separated list of scope properties and `expr` an expression which must evaluate to `true` in order for `<tag/>` to be shown. When used in the expression, `this` refers to the local scope
 * `<tag v-if="(args) => { statements }">...</tag>`<br>where `args` is an (optionally empty) comma-separated list of scope properties and `statements` the body of a function which should return `true` in order for `<tag/>` to be rendered. When used in the function body, `this` refers to the local scope
 
+Function parameter names must satisfy the following syntax rules:
+
+* they must start with `_`, `$` or a roman letter (`a`...`z` or `A`...`Z`)
+* and may be followed by any number of `_`, `$`, decimal digits (`0`...`9`) or roman letters (`a`...`z` or `A`...`Z`)
+
 Here are some examples:
 
 ```
