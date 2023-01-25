@@ -373,11 +373,15 @@ domc.component = function(tag, templateObj) {
             return function(scope) { return cNode.createInstance(scope) }
         `)(cNode)
 
+        function quoteEscaped (Text) {
+          return (Text || '').replace(/\\/g,'\\\\').replace(/"/g,'\\"')
+        }
+
         let varsFn
         if (!hasntAttrs) {
             let varsCode = 'const vs = {};\n'
             for(let attr of orig.attributes) {
-                varsCode += `vs["${attr.name}"] = scope["${attr.value}"];\n`
+                varsCode += `vs["${attr.name}"] = "${quoteEscaped(attr.value)}";\n`
             }
             varsFn = Function("scope", varsCode + 'return vs;\n')
         }
