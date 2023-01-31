@@ -2,18 +2,17 @@
 
 Compile DOM node, with `{{ value }}` mustache syntax for dynamic values inside, into function for using as a template.
 
-## To be done/Not implemented
-- Conditional rendering with v-if
-
 ## The Gist
 
 ```javascript
 import domc from 'domc'
 
-// Given following node
-// <div id="template">
+// Given following HTML
+// <div style="display:none">
+//   <div id="template">
 //     <div>{{ name }}</div>
 //     <div>{{ surname }}</div>
+//   </div>
 // </div>
 // compile it into template
 const template = domc(document.querySelector('#template'))
@@ -26,22 +25,32 @@ container.appendChild(node)
 node.update({name: 'Bob', surname: 'Marley'})
 ```
 
-## Performance demo
-
-https://github.com/Freak613/js-framework-benchmark/tree/master/frameworks/keyed/domc
-
-![Performance](performance.png?raw=true "Performance")
-
 ## Size
 2.33Kb `index.js` + 1.08Kb `vFor.js`
 
-
 ## Supported dynamic values syntax
 
-Only following formats are supported currently:
-- Just values: `{{ item }}`
-- Nested calls: `{{ item.id }}`
-- Function calls: `{{ rowClass(item.id) }}`
+The following formats are currently supported:
+
+- plain values: `{{ item }}`
+- nested values: `{{ item.id }}`
+- function calls: `{{ rowClass(item.id) }}`
+
+All these must be part of a component's scope.
+
+Placeholders may be used
+
+- for the content of an element (`<div>{{ content }}</div>`) or
+- for the value of a non-boolean attribute (`<input type="text" value="{{ value }}">`)
+
+Placeholders for boolean attributes (such as the `readonly` flag of an `input` element) are **not supported**: i.e., the following variants
+
+```
+<input type="text" readonly="{{ readonly }}">
+<input type="text" {{ readonly }}>
+```
+
+**do not work**!
 
 ## Synthetic Events
 
@@ -60,6 +69,8 @@ Also, it doesn't do bubbling after first handler has been met.
 It's possible to create components in JS code.
 
 `scope` is key concept of domc. If you coming from React background, it's idea of `props` and Context API merged into one entity. All templates work in some scope and scope is automatically passed down the DOM tree. All components and directives can extend scope, deeper you go and more extended scope becomes, having all scope vars starting from root component. It eliminates need to manually passing props if source and target have some intermediate components between them.
+
+> Nota bene: at runtime, `scope` may be automatically extended with the following additional entries: `render`, `node`, `nodeRender` and `children` - do not use these keys in your own `scope` data structure
 
 Components are defined using tag name, it follows Custom Elements naming convention i.e. tag should have at least one dash symbol in the name to be considered as a component.
 All components should be registered in domc before they've been used.
@@ -86,16 +97,24 @@ domc.component('app-body', `
 
 To make stateful component or to redefine some props from parent scope, domc.component function accepts templateObject argument.
 
-Components could have props defined in template directly. They will be mapped from parent's scope automatically.
-Currently no JS values allowed in mapped props.
+Components could have props defined as attributes in the template. The following code
 
 ```javascript
 domc.component('app-body', `
 <div id="app-4">
   <ol>
-    <todo-item v-for="todo of todos" some-custom-prop1="parentVar1" some-custom-prop2="parentVar2"/>
+    <todo-item v-for="todo of todos" custom-prop1="value1" custom-prop2="value2"/>
   </ol>
 </div>`)
+```
+
+will decorate the `<todo-item/>`'s local scope with the following properties:
+
+```javascript
+{
+  "custom-prop1":"value1",
+  "custom-prop2":"value2"
+}
 ```
 
 So, basic example looks like this:
@@ -272,6 +291,39 @@ const instanceStyles = s({color: 'black', posX: 0, poxY: 0})
 instanceStyles({posX: 100, posY: 200})
 // instanceStyles.inline.base === {top: '100px', left: '200px'}
 ```
+
+## Conditional Rendering ##
+
+Element rendering may be made dependent on a given condition with the help of directive `v-if`. Just add `v-if` as an attribute to the start tag of your element and set that attribute to the desired condition. The following variants are supported:
+
+* `<tag v-if="scopeProp">...</tag>`<br>where `scopeProp` is the name of a (boolean) scope property. The `<tag/>` will only be shown if `scopeProp` is `true`
+* `<tag v-if="(args) => expr">...</tag>`<br>where `args` is an (optionally empty) comma-separated list of scope properties and `expr` an expression which must evaluate to `true` in order for `<tag/>` to be shown. When used in the expression, `this` refers to the local scope
+* `<tag v-if="(args) => { statements }">...</tag>`<br>where `args` is an (optionally empty) comma-separated list of scope properties and `statements` the body of a function which should return `true` in order for `<tag/>` to be rendered. When used in the function body, `this` refers to the local scope
+
+Function parameter names must satisfy the following syntax rules:
+
+* they must start with `_`, `$` or a roman letter (`a`...`z` or `A`...`Z`)
+* and may be followed by any number of `_`, `$`, decimal digits (`0`...`9`) or roman letters (`a`...`z` or `A`...`Z`)
+
+Here are some examples:
+
+```
+<custom-element v-if="visible"/>
+```
+
+will only be rendered if `visible` is part of the scope and set to `true`
+
+```
+<custom-element v-if="() => this.isVisible && this.isUseful"/>
+```
+
+will only be rendered if both `isVisible` and `isUseful` are part of the scope and set to `true`. While the attribute value looks like a (synchronous!) "fat arrow" literal, it will be parsed and compiled into a function that runs in the `this` context of the local scope
+
+```
+<custom-element v-if="(ultimateAnswer) => { return (ultimateAnswer === 42) }"/>
+```
+
+will only be rendered if `ultimateAnswer` is part of the scope and set to `42`. While the attribute value looks like a (synchronous!) "fat arrow" literal, it will be parsed and compiled into a function that runs in the `this` context of the local scope
 
 ## Custom Directives
 
